@@ -3,7 +3,7 @@ defmodule Cleat.CLI do
   Escript entrypoint for the `cleat` command-line interface.
   """
 
-  alias Cleat.Commands.{Apps, Deploy, Init, Login, Logout, Logs, Servers, Status, Whoami}
+  alias Cleat.Commands.{Apps, Deploy, Env, Init, Login, Logout, Logs, Servers, Status, Whoami}
   alias Cleat.Output
 
   @version Mix.Project.config()[:version]
@@ -18,6 +18,8 @@ defmodule Cleat.CLI do
     ref: :string,
     watch: :boolean,
     follow: :boolean,
+    reveal: :boolean,
+    deploy: :boolean,
     server: :string,
     repo: :string,
     branch: :string,
@@ -68,6 +70,7 @@ defmodule Cleat.CLI do
   defp dispatch(["init"], opts), do: run(Init.run(opts))
   defp dispatch(["servers" | rest], opts), do: run(Servers.run(rest, opts))
   defp dispatch(["apps" | rest], opts), do: run(Apps.run(rest, opts))
+  defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
 
   defp dispatch(["deploy", app | _rest], opts), do: run(Deploy.run(app, opts))
   defp dispatch(["deploy"], _opts), do: fail("usage: cleat deploy APP [--ref BRANCH] [--watch]")
@@ -123,6 +126,11 @@ defmodule Cleat.CLI do
       apps show APP                         Show one app (id or slug)
       apps create --name N --repo O/R \\
         --host H --server ID                Create an app
+
+    Environment
+      env list APP [--reveal]               List env vars (secrets masked)
+      env set APP K=V [K=V ...] [--deploy]  Upsert env vars
+      env unset APP KEY [--deploy]          Delete an env var
 
     Deployments
       deploy APP [--ref BRANCH] [--watch]   Trigger a deploy (id or slug)

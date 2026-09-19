@@ -59,6 +59,9 @@ panel and is stored as a hash server-side.
 | `cleat apps list` | List apps |
 | `cleat apps show APP` | Show one app (by id or slug) |
 | `cleat apps create` | Create an app |
+| `cleat env list APP` | List env vars (secrets masked) |
+| `cleat env set APP K=V` | Upsert one or more env vars |
+| `cleat env unset APP KEY` | Delete an env var |
 | `cleat deploy APP` | Trigger a deploy (by id or slug) |
 | `cleat status APP` | List recent deployments for an app |
 | `cleat logs DEPLOYMENT_ID` | Print a deployment's build log |
@@ -88,6 +91,24 @@ For Go projects it detects binaries under `cmd/*/main.go`:
 ```
 
 Commit the manifest so the panel picks it up on the next deploy.
+
+### Environment variables
+
+Env vars are stored encrypted by the panel and written to the server
+(`/etc/<app>/env`) during a deploy. They are masked by default:
+
+```bash
+cleat env list my-app              # secrets shown as •••
+cleat env list my-app --reveal     # show values in the clear
+
+cleat env set my-app DATABASE_URL=libsql://... SECRET_KEY_BASE=...
+cleat env set my-app FOO=bar --deploy   # apply immediately (one deploy)
+
+cleat env unset my-app OLD_KEY --deploy
+```
+
+Keys must be `UPPER_SNAKE_CASE`. A value with `=` (`KEY=a=b`) is supported.
+Without `--deploy`, run `cleat deploy APP` to apply the changes.
 
 ## Configuration
 
