@@ -34,6 +34,8 @@ defmodule Cleat.Client do
   def create_server(client, attrs), do: request(client, :post, "/api/v1/servers", json: attrs)
   def delete_server(client, id), do: request(client, :delete, "/api/v1/servers/#{id}")
   def sync_server(client, id), do: request(client, :post, "/api/v1/servers/#{id}/sync")
+  def start_server(client, id), do: request(client, :post, "/api/v1/servers/#{id}/start")
+  def stop_server(client, id), do: request(client, :post, "/api/v1/servers/#{id}/stop")
 
   def list_apps(%__MODULE__{} = client), do: request(client, :get, "/api/v1/apps")
   def get_app(client, id_or_slug), do: request(client, :get, "/api/v1/apps/#{id_or_slug}")

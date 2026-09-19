@@ -55,6 +55,28 @@ defmodule Cleat.Commands.ServersTest do
     assert message =~ "--yes"
   end
 
+  test "stops a server" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/servers/3/stop"
+
+      Req.Test.json(conn, %{"data" => %{"id" => 3, "instance_status" => "stopped"}})
+    end)
+
+    assert :ok = Servers.run(["stop", "3"], @conn)
+  end
+
+  test "starts a server" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/servers/3/start"
+
+      Req.Test.json(conn, %{"data" => %{"id" => 3, "instance_status" => "running"}})
+    end)
+
+    assert :ok = Servers.run(["start", "3"], @conn)
+  end
+
   test "syncs server specs" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "POST"

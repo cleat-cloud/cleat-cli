@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Servers do
 
   alias Cleat.{Client, Commands, Output}
 
-  @usage "usage: cleat servers list | cleat servers show ID | cleat servers create --name N --ip IP [--ssh-key-file F] | cleat servers delete ID --yes | cleat servers sync ID"
+  @usage "usage: cleat servers list | cleat servers show ID | cleat servers create --name N --ip IP [--ssh-key-file F] | cleat servers delete ID --yes | cleat servers sync ID | cleat servers start ID | cleat servers stop ID"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
@@ -11,6 +11,8 @@ defmodule Cleat.Commands.Servers do
   def run(["create"], opts), do: create(opts)
   def run(["delete", id | _rest], opts), do: delete(id, opts)
   def run(["sync", id], opts), do: sync(id, opts)
+  def run(["start", id], opts), do: power(id, :start, opts)
+  def run(["stop", id], opts), do: power(id, :stop, opts)
   def run(_args, _opts), do: {:error, @usage}
 
   defp list(opts) do
@@ -126,6 +128,19 @@ defmodule Cleat.Commands.Servers do
       :ok
     end
   end
+
+  defp power(id, action, opts) do
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- call_power(client, id, action) do
+      server = Commands.data(body)
+      verb = if action == :start, do: "Started", else: "Stopped"
+      Output.success("#{verb} server ##{id} (#{server["instance_status"]})")
+      :ok
+    end
+  end
+
+  defp call_power(client, id, :start), do: Client.start_server(client, id)
+  defp call_power(client, id, :stop), do: Client.stop_server(client, id)
 
   defp ssh_key(opts) do
     case opts[:ssh_key_file] do

@@ -157,6 +157,8 @@ defmodule Cleat.CLI do
       servers create --name N --ip IP \\
         [--ssh-key-file F]                  Register a server
       servers sync ID                       Refresh cloud specs
+      servers start ID                      Power the VM on
+      servers stop ID                       Power the VM off
       servers delete ID --yes               Delete a server
       apps list                             List apps
       apps show APP                         Show one app (id or slug)
