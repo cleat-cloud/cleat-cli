@@ -42,6 +42,22 @@ defmodule Cleat.Client do
   def cancel_deploy(client, app),
     do: request(client, :post, "/api/v1/apps/#{app}/cancel", json: %{})
 
+  @doc """
+  Uploads a gzipped tarball of a static site (git-less "drop").
+
+  The panel stores the artifact and publishes it on the app's server.
+  """
+  def create_drop(client, app, tarball_path, ref \\ nil) do
+    opts = [
+      headers: [{"content-type", "application/gzip"}],
+      body: File.read!(tarball_path)
+    ]
+
+    opts = if ref, do: Keyword.put(opts, :params, %{ref: ref}), else: opts
+
+    request(client, :post, "/api/v1/apps/#{app}/drops", opts)
+  end
+
   def list_deployments(client, app),
     do: request(client, :get, "/api/v1/apps/#{app}/deployments")
 

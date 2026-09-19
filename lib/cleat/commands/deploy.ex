@@ -75,7 +75,8 @@ defmodule Cleat.Commands.Deploy do
     end
   end
 
-  defp watch(client, id) do
+  @doc false
+  def watch(client, id) do
     fetch = fn -> Client.get_deployment(client, id) end
 
     step = fn body, last_status ->

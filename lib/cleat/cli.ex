@@ -7,6 +7,7 @@ defmodule Cleat.CLI do
     Apps,
     Cancel,
     Deploy,
+    Drop,
     Env,
     Init,
     Login,
@@ -36,6 +37,7 @@ defmodule Cleat.CLI do
     auto_deploy: :boolean,
     server: :string,
     repo: :string,
+    app: :string,
     branch: :string,
     host: :string,
     slug: :string,
@@ -87,6 +89,7 @@ defmodule Cleat.CLI do
   defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
 
   defp dispatch(["deploy" | rest], opts), do: run(Deploy.run(List.first(rest), opts))
+  defp dispatch(["drop" | rest], opts), do: run(Drop.run(rest, opts))
   defp dispatch(["cancel", app | _rest], opts), do: run(Cancel.run(app, opts))
   defp dispatch(["cancel"], _opts), do: fail("usage: cleat cancel APP")
 
@@ -153,6 +156,9 @@ defmodule Cleat.CLI do
       deploy APP [--ref BRANCH] [--watch]   Trigger a deploy (id or slug)
       deploy --repo owner/repo --server ID \\
         --host H [--branch B] [--watch]     Register if needed, then deploy
+      drop [DIR] --app APP [--watch]        Publish a local folder (no git)
+      drop [DIR] --server ID --host H \\
+        [--slug S] [--watch]                Create the static app, then drop
       cancel APP                            Cancel the active deploy
       status APP                            List recent deployments for an app
       logs DEPLOYMENT_ID [--follow]         Print a deployment's build log
