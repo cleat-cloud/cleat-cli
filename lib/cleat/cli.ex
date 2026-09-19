@@ -50,6 +50,8 @@ defmodule Cleat.CLI do
     provider: :string,
     ssh_user: :string,
     ssh_key_file: :string,
+    bundle: :string,
+    mode: :string,
     slug: :string,
     runtime: :string,
     binaries: :string,
@@ -156,6 +158,9 @@ defmodule Cleat.CLI do
       servers show ID                       Show one server
       servers create --name N --ip IP \\
         [--ssh-key-file F]                  Register a server
+      servers provision --name N \\
+        [--region fsn1] [--bundle cx33]     Create a Hetzner VM
+      servers resize ID [--bundle B]        Resize (no --bundle: list options)
       servers sync ID                       Refresh cloud specs
       servers start ID                      Power the VM on
       servers stop ID                       Power the VM off

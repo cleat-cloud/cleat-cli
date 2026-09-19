@@ -3,16 +3,18 @@ defmodule Cleat.Commands.Servers do
 
   alias Cleat.{Client, Commands, Output}
 
-  @usage "usage: cleat servers list | cleat servers show ID | cleat servers create --name N --ip IP [--ssh-key-file F] | cleat servers delete ID --yes | cleat servers sync ID | cleat servers start ID | cleat servers stop ID"
+  @usage "usage: cleat servers list | cleat servers show ID | cleat servers create --name N --ip IP [--ssh-key-file F] | cleat servers provision --name N [--region fsn1] [--bundle cx33] [--mode shared] | cleat servers delete ID --yes | cleat servers sync ID | cleat servers start ID | cleat servers stop ID | cleat servers resize ID [--bundle BUNDLE]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
   def run(["show", id], opts), do: show(id, opts)
   def run(["create"], opts), do: create(opts)
+  def run(["provision"], opts), do: provision(opts)
   def run(["delete", id | _rest], opts), do: delete(id, opts)
   def run(["sync", id], opts), do: sync(id, opts)
   def run(["start", id], opts), do: power(id, :start, opts)
   def run(["stop", id], opts), do: power(id, :stop, opts)
+  def run(["resize", id | _rest], opts), do: resize(id, opts)
   def run(_args, _opts), do: {:error, @usage}
 
   defp list(opts) do
@@ -124,6 +126,68 @@ defmodule Cleat.Commands.Servers do
       Output.success(
         "Synced server ##{id} → #{server["bundle_name"] || "unknown"} (#{server["instance_status"]})"
       )
+
+      :ok
+    end
+  end
+
+  defp provision(opts) do
+    attrs = %{
+      "name" => opts[:name],
+      "region" => opts[:region] || "fsn1",
+      "bundle_id" => opts[:bundle] || "cx33",
+      "deploy_mode" => opts[:mode] || "shared"
+    }
+
+    case missing(attrs, [{"name", "--name"}]) do
+      [] ->
+        with {:ok, client} <- Commands.client(opts),
+             {:ok, body} <- Client.provision_server(client, attrs) do
+          server = Commands.data(body)
+          Output.success("Provisioned #{server["name"]} (##{server["id"]}) #{server["host_ip"]}")
+          :ok
+        end
+
+      missing ->
+        {:error, "missing required options: #{Enum.join(missing, ", ")}"}
+    end
+  end
+
+  defp resize(id, opts) do
+    if is_binary(opts[:bundle]) and opts[:bundle] != "" do
+      with {:ok, client} <- Commands.client(opts),
+           {:ok, body} <- Client.resize_server(client, id, opts[:bundle]) do
+        server = Commands.data(body)
+        Output.success("Resized server ##{id} → #{server["bundle_name"] || server["bundle_id"]}")
+        :ok
+      end
+    else
+      resize_options(id, opts)
+    end
+  end
+
+  defp resize_options(id, opts) do
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- Client.resize_options(client, id) do
+      options = Commands.data(body)
+
+      if opts[:json] do
+        Output.json(options)
+      else
+        rows =
+          Enum.map(options, fn o ->
+            [
+              o["bundle_id"],
+              o["bundle_name"],
+              o["cpu_count"],
+              o["ram_mb"],
+              o["disk_gb"],
+              o["monthly_price_usd"]
+            ]
+          end)
+
+        Output.table(rows, ["BUNDLE", "NAME", "vCPU", "RAM MB", "DISK GB", "PRICE"])
+      end
 
       :ok
     end

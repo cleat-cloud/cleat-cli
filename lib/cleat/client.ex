@@ -37,6 +37,15 @@ defmodule Cleat.Client do
   def start_server(client, id), do: request(client, :post, "/api/v1/servers/#{id}/start")
   def stop_server(client, id), do: request(client, :post, "/api/v1/servers/#{id}/stop")
 
+  def provision_server(client, attrs),
+    do: request(client, :post, "/api/v1/servers/provision", json: attrs)
+
+  def resize_server(client, id, bundle_id),
+    do: request(client, :post, "/api/v1/servers/#{id}/resize", json: %{bundle_id: bundle_id})
+
+  def resize_options(client, id),
+    do: request(client, :get, "/api/v1/servers/#{id}/resize-options")
+
   def list_apps(%__MODULE__{} = client), do: request(client, :get, "/api/v1/apps")
   def get_app(client, id_or_slug), do: request(client, :get, "/api/v1/apps/#{id_or_slug}")
   def create_app(client, attrs), do: request(client, :post, "/api/v1/apps", json: attrs)

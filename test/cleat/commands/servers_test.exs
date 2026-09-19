@@ -1,6 +1,8 @@
 defmodule Cleat.Commands.ServersTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureIO
+
   alias Cleat.Commands.Servers
 
   @conn %{panel: "https://panel.test", token: "tok"}
@@ -75,6 +77,51 @@ defmodule Cleat.Commands.ServersTest do
     end)
 
     assert :ok = Servers.run(["start", "3"], @conn)
+  end
+
+  test "provisions a VM" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/servers/provision"
+
+      body = Jason.decode!(Req.Test.raw_body(conn))
+      assert body["name"] == "box"
+      assert body["bundle_id"] == "cx33"
+
+      conn
+      |> Plug.Conn.put_status(201)
+      |> Req.Test.json(%{"data" => %{"id" => 5, "name" => "box", "host_ip" => "203.0.113.7"}})
+    end)
+
+    assert :ok =
+             Servers.run(
+               ["provision"],
+               @conn |> Map.put(:name, "box") |> Map.put(:bundle, "cx33")
+             )
+  end
+
+  test "resizes a server" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/servers/3/resize"
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{"bundle_id" => "cx43"}
+
+      Req.Test.json(conn, %{"data" => %{"id" => 3, "bundle_id" => "cx43"}})
+    end)
+
+    assert :ok = Servers.run(["resize", "3"], Map.put(@conn, :bundle, "cx43"))
+  end
+
+  test "lists resize options when no bundle is given" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/servers/3/resize-options"
+
+      Req.Test.json(conn, %{"data" => [%{"bundle_id" => "cx43", "bundle_name" => "CX43"}]})
+    end)
+
+    output = capture_io(fn -> assert :ok = Servers.run(["resize", "3"], @conn) end)
+    assert output =~ "cx43"
   end
 
   test "syncs server specs" do
