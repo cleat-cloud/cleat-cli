@@ -40,6 +40,65 @@ defmodule Cleat.Commands do
     end
   end
 
+  @doc """
+  Base domain for the `--subdomain` shortcut (e.g. `sites.example.com`).
+
+  Resolved from the `--base-domain` flag, then `CLEAT_BASE_DOMAIN`, then the
+  stored config.
+  """
+  def base_domain(opts) do
+    opts[:base_domain] || non_empty(System.get_env("CLEAT_BASE_DOMAIN")) ||
+      Config.get("base_domain")
+  end
+
+  @doc """
+  Resolves the app host from `--host` or from `--subdomain` + the base domain.
+
+  Returns `{:ok, host}` or `{:error, message}`.
+  """
+  def host(opts) do
+    cond do
+      is_binary(opts[:host]) and opts[:host] != "" ->
+        {:ok, String.downcase(String.trim(opts[:host]))}
+
+      is_binary(opts[:subdomain]) and opts[:subdomain] != "" ->
+        host_from_subdomain(opts[:subdomain], base_domain(opts))
+
+      true ->
+        {:error, :missing_host}
+    end
+  end
+
+  defp host_from_subdomain(subdomain, base) do
+    sub = subdomain |> String.trim() |> String.downcase()
+    normalized_base = normalize_base(base)
+
+    cond do
+      String.contains?(sub, ".") ->
+        {:error, "--subdomain must be a single label (use --host for a full domain)"}
+
+      is_nil(normalized_base) ->
+        {:error,
+         "no base domain configured. Run `cleat config set base_domain sites.example.com`, " <>
+           "set CLEAT_BASE_DOMAIN, or pass --base-domain / --host."}
+
+      not Regex.match?(~r/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/, sub) ->
+        {:error, "invalid subdomain #{inspect(subdomain)} (lowercase letters, digits and dashes)"}
+
+      true ->
+        {:ok, "#{sub}.#{normalized_base}"}
+    end
+  end
+
+  defp normalize_base(nil), do: nil
+
+  defp normalize_base(base) do
+    case base |> String.trim() |> String.downcase() |> String.trim_trailing(".") do
+      "" -> nil
+      value -> value
+    end
+  end
+
   @doc "Reads a password without echoing it when possible."
   def read_password(prompt) do
     IO.write(prompt)

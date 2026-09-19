@@ -66,6 +66,37 @@ defmodule Cleat.Commands.DropTest do
              )
   end
 
+  test "creates the app from --subdomain and base domain", %{dir: dir} do
+    slug = Path.basename(dir)
+    drops_path = "/api/v1/apps/#{slug}/drops"
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["host"] == "exemplo.sites.example.com"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 9, "slug" => slug}})
+
+        {"POST", ^drops_path} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 10, "status" => "queued"}})
+      end
+    end)
+
+    assert :ok =
+             Drop.run(
+               [dir],
+               @conn
+               |> Map.put(:server, "3")
+               |> Map.put(:subdomain, "exemplo")
+               |> Map.put(:base_domain, "sites.example.com")
+             )
+  end
+
   test "errors on a missing directory" do
     assert {:error, message} = Drop.run(["/nope/missing"], @conn)
     assert message =~ "not a directory"

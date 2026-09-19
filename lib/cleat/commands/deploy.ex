@@ -49,29 +49,39 @@ defmodule Cleat.Commands.Deploy do
   defp register_repo(client, repo, opts) do
     cond do
       is_nil(opts[:server]) ->
-        {:error, "#{repo} is not registered. Pass --server ID (and --host) to register it."}
-
-      is_nil(opts[:host]) ->
-        {:error, "#{repo} is not registered. Pass --host DOMAIN to register it."}
+        {:error, "#{repo} is not registered. Pass --server ID (and a host)."}
 
       true ->
-        slug = opts[:slug] || slugify(Path.basename(repo))
+        case Commands.host(opts) do
+          {:ok, host} ->
+            register(client, repo, host, opts)
 
-        attrs = %{
-          "name" => opts[:name] || slug,
-          "slug" => slug,
-          "github_repo" => repo,
-          "branch" => opts[:branch] || "main",
-          "host" => opts[:host],
-          "server_id" => opts[:server],
-          "runtime" => opts[:runtime] || "phoenix"
-        }
+          {:error, :missing_host} ->
+            {:error, "#{repo} is not registered. Pass --host DOMAIN or --subdomain NAME."}
 
-        with {:ok, body} <- Client.create_app(client, attrs) do
-          app = Commands.data(body)
-          Output.success("Registered app #{app["slug"]} (##{app["id"]})")
-          {:ok, app["slug"]}
+          {:error, message} ->
+            {:error, message}
         end
+    end
+  end
+
+  defp register(client, repo, host, opts) do
+    slug = opts[:slug] || slugify(Path.basename(repo))
+
+    attrs = %{
+      "name" => opts[:name] || slug,
+      "slug" => slug,
+      "github_repo" => repo,
+      "branch" => opts[:branch] || "main",
+      "host" => host,
+      "server_id" => opts[:server],
+      "runtime" => opts[:runtime] || "phoenix"
+    }
+
+    with {:ok, body} <- Client.create_app(client, attrs) do
+      app = Commands.data(body)
+      Output.success("Registered app #{app["slug"]} (##{app["id"]})")
+      {:ok, app["slug"]}
     end
   end
 

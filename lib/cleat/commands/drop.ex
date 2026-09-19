@@ -54,26 +54,31 @@ defmodule Cleat.Commands.Drop do
       is_nil(opts[:server]) ->
         {:error, @usage}
 
-      is_nil(opts[:host]) ->
-        {:error, @usage}
-
       is_nil(slug) ->
         {:error, "could not derive a slug from #{dir}; pass --slug"}
 
       true ->
-        attrs = %{
-          "name" => opts[:name] || slug,
-          "slug" => slug,
-          "host" => opts[:host],
-          "server_id" => opts[:server],
-          "runtime" => "static"
-        }
-
-        with {:ok, body} <- Client.create_app(client, attrs) do
-          app = Commands.data(body)
-          Output.success("Registered static app #{app["slug"]} (##{app["id"]})")
-          {:ok, app["slug"]}
+        case Commands.host(opts) do
+          {:ok, host} -> create_app(client, slug, host, opts)
+          {:error, :missing_host} -> {:error, @usage}
+          {:error, message} -> {:error, message}
         end
+    end
+  end
+
+  defp create_app(client, slug, host, opts) do
+    attrs = %{
+      "name" => opts[:name] || slug,
+      "slug" => slug,
+      "host" => host,
+      "server_id" => opts[:server],
+      "runtime" => "static"
+    }
+
+    with {:ok, body} <- Client.create_app(client, attrs) do
+      app = Commands.data(body)
+      Output.success("Registered static app #{app["slug"]} (##{app["id"]}) → #{host}")
+      {:ok, app["slug"]}
     end
   end
 

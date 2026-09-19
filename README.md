@@ -52,6 +52,7 @@ panel and is stored as a hash server-side.
 | `cleat logout` | Revoke the token and clear local credentials |
 | `cleat whoami` | Show the authenticated user and tenant |
 | `cleat init` | Write `.cleat_deploy/deploy.json` in the current project |
+| `cleat config` | Show or edit CLI configuration |
 | `cleat servers list` | List servers |
 | `cleat servers show ID` | Show one server |
 | `cleat apps list` | List apps |
@@ -176,6 +177,29 @@ Resolution order for both the panel URL and the token:
 
 Set `CLEAT_CONFIG` to use a different config file path.
 Add `--json` to any read command for machine-readable output.
+
+### Named subdomains
+
+Create one DNS wildcard (`*.sites.example.com` → your server) and let the CLI
+build the host for you. Set the base domain once:
+
+```bash
+cleat config set base_domain sites.example.com
+```
+
+Then `--subdomain` expands to `<name>.<base_domain>`:
+
+```bash
+cleat drop ./site --server 3 --subdomain exemplo --watch
+# → exemplo.sites.example.com
+
+cleat deploy --repo owner/repo --server 3 --subdomain exemplo --runtime static --watch
+```
+
+`--base-domain` overrides the stored value per command, and `CLEAT_BASE_DOMAIN`
+sets it via the environment. Use `--host` for a full domain. The panel issues a
+Let's Encrypt certificate per host automatically; it does not need to know the
+base domain.
 
 ## Development
 

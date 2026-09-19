@@ -6,6 +6,7 @@ defmodule Cleat.CLI do
   alias Cleat.Commands.{
     Apps,
     Cancel,
+    Config,
     Deploy,
     Drop,
     Env,
@@ -38,8 +39,9 @@ defmodule Cleat.CLI do
     server: :string,
     repo: :string,
     app: :string,
-    branch: :string,
     host: :string,
+    subdomain: :string,
+    base_domain: :string,
     slug: :string,
     runtime: :string,
     binaries: :string,
@@ -84,6 +86,7 @@ defmodule Cleat.CLI do
   defp dispatch(["logout"], opts), do: run(Logout.run(opts))
   defp dispatch(["whoami"], opts), do: run(Whoami.run(opts))
   defp dispatch(["init"], opts), do: run(Init.run(opts))
+  defp dispatch(["config" | rest], opts), do: run(Config.run(rest, opts))
   defp dispatch(["servers" | rest], opts), do: run(Servers.run(rest, opts))
   defp dispatch(["apps" | rest], opts), do: run(Apps.run(rest, opts))
   defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
@@ -136,6 +139,7 @@ defmodule Cleat.CLI do
 
     Project
       init                                  Write .cleat_deploy/deploy.json
+      config [list|get|set|unset]           Show or edit CLI config
 
     Resources
       servers list                          List servers
@@ -157,8 +161,8 @@ defmodule Cleat.CLI do
       deploy --repo owner/repo --server ID \\
         --host H [--branch B] [--watch]     Register if needed, then deploy
       drop [DIR] --app APP [--watch]        Publish a local folder (no git)
-      drop [DIR] --server ID --host H \\
-        [--slug S] [--watch]                Create the static app, then drop
+      drop [DIR] --server ID \\
+        --host H [--slug S] [--watch]       Create the static app, then drop
       cancel APP                            Cancel the active deploy
       status APP                            List recent deployments for an app
       logs DEPLOYMENT_ID [--follow]         Print a deployment's build log
@@ -166,6 +170,9 @@ defmodule Cleat.CLI do
     Global options
       --panel URL      Panel base URL (env CLEAT_PANEL_URL)
       --token TOKEN    Bearer token (env CLEAT_TOKEN)
+      --host HOST      Full app domain (e.g. landing.sites.example.com)
+      --subdomain NAME Shortcut: NAME.<base_domain> (env CLEAT_BASE_DOMAIN)
+      --base-domain D  Base domain for --subdomain
       --json           Machine-readable output
       -h, --help       Show this help
       -v, --version    Show the CLI version

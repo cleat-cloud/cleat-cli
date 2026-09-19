@@ -72,33 +72,45 @@ defmodule Cleat.Commands.Apps do
   end
 
   defp create(opts) do
-    attrs = %{
-      "name" => opts[:name],
-      "slug" => opts[:slug] || slugify(opts[:name]),
-      "github_repo" => opts[:repo],
-      "branch" => opts[:branch] || "main",
-      "host" => opts[:host],
-      "port" => opts[:port] || 4000,
-      "runtime" => opts[:runtime] || "phoenix",
-      "server_id" => opts[:server]
-    }
+    case Commands.host(opts) do
+      {:error, message} when is_binary(message) ->
+        {:error, message}
 
-    case missing(attrs, [
-           {"name", "--name"},
-           {"github_repo", "--repo"},
-           {"host", "--host"},
-           {"server_id", "--server"}
-         ]) do
-      [] ->
-        with {:ok, client} <- Commands.client(opts),
-             {:ok, body} <- Client.create_app(client, attrs) do
-          app = Commands.data(body)
-          Output.success("Created app #{app["slug"]} (##{app["id"]}) on #{server_name(app)}")
-          :ok
+      host_result ->
+        host =
+          case host_result do
+            {:ok, value} -> value
+            {:error, :missing_host} -> nil
+          end
+
+        attrs = %{
+          "name" => opts[:name],
+          "slug" => opts[:slug] || slugify(opts[:name]),
+          "github_repo" => opts[:repo],
+          "branch" => opts[:branch] || "main",
+          "host" => host,
+          "port" => opts[:port] || 4000,
+          "runtime" => opts[:runtime] || "phoenix",
+          "server_id" => opts[:server]
+        }
+
+        case missing(attrs, [
+               {"name", "--name"},
+               {"github_repo", "--repo"},
+               {"host", "--host (or --subdomain)"},
+               {"server_id", "--server"}
+             ]) do
+          [] ->
+            with {:ok, client} <- Commands.client(opts),
+                 {:ok, body} <- Client.create_app(client, attrs) do
+              app = Commands.data(body)
+              Output.success("Created app #{app["slug"]} (##{app["id"]}) on #{server_name(app)}")
+              :ok
+            end
+
+          missing ->
+            {:error, "missing required options: #{Enum.join(missing, ", ")}"}
         end
-
-      missing ->
-        {:error, "missing required options: #{Enum.join(missing, ", ")}"}
     end
   end
 
