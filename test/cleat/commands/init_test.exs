@@ -72,6 +72,24 @@ defmodule Cleat.Commands.InitTest do
     assert read_manifest()["runtime"] == "phoenix"
   end
 
+  test "detects a static site without mix.exs or go.mod" do
+    File.write!("index.html", "<html></html>")
+
+    assert :ok = Init.run(%{})
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "static"
+    refute Map.has_key?(manifest, "release_name")
+  end
+
+  test "detects a JS project with package.json as static" do
+    File.write!("package.json", ~s({"name":"site"}))
+
+    assert :ok = Init.run(%{})
+
+    assert read_manifest()["runtime"] == "static"
+  end
+
   defp read_manifest do
     ".cleat_deploy/deploy.json"
     |> File.read!()

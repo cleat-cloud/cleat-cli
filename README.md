@@ -91,6 +91,19 @@ For Go projects it detects binaries under `cmd/*/main.go`:
 }
 ```
 
+For static sites, `cleat init` detects the absence of `mix.exs`/`go.mod` plus an
+`index.html` or `package.json`, or you can force it with `cleat init --runtime static`:
+
+```json
+{
+  "runtime": "static"
+}
+```
+
+The panel optionally runs `npm ci && npm run build` and serves the output
+directory (`dist`, `build`, `public`, `_site`, `out`, or `build_dir`) through
+Caddy with an SPA fallback — no runtime process.
+
 Commit the manifest so the panel picks it up on the next deploy.
 
 ### Environment variables

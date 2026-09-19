@@ -40,11 +40,14 @@ defmodule Cleat.Commands.Init do
   defp detect_runtime do
     cond do
       File.exists?("go.mod") and not File.exists?("mix.exs") -> "golang"
+      File.exists?("mix.exs") -> "phoenix"
+      File.exists?("index.html") or File.exists?("package.json") -> "static"
       true -> "phoenix"
     end
   end
 
   defp default_release_name("golang"), do: nil
+  defp default_release_name("static"), do: nil
   defp default_release_name("phoenix"), do: mix_app()
 
   defp mix_app do
