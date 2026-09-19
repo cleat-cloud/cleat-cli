@@ -42,6 +42,7 @@ defmodule Cleat.MixProject do
 
   defp aliases do
     [
+      install: ["cleat.install"],
       precommit: [
         "compile --warnings-as-errors",
         "format",

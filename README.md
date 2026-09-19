@@ -15,14 +15,12 @@ Requires Elixir 1.15+ / OTP 26+.
 git clone https://github.com/puppe1990/cleat-cli.git
 cd cleat-cli
 mix deps.get
-mix escript.build
+mix install
 ```
 
-This produces a `cleat` binary. Move it onto your `PATH`:
-
-```bash
-install -m 0755 cleat /usr/local/bin/cleat
-```
+`mix install` builds the escript and copies it to `~/.local/bin` (override with
+`mix install /usr/local/bin` or `CLEAT_INSTALL_DIR`). Make sure the destination
+is on your `PATH`, then check `cleat version`.
 
 ## Quick start
 
