@@ -6,6 +6,7 @@ defmodule Cleat.CLI do
   alias Cleat.Commands.{
     Apps,
     Cancel,
+    Completions,
     Config,
     Deploy,
     Drop,
@@ -28,6 +29,8 @@ defmodule Cleat.CLI do
     token: :string,
     email: :string,
     password: :string,
+    token_file: :string,
+    password_file: :string,
     name: :string,
     json: :boolean,
     ref: :string,
@@ -42,6 +45,11 @@ defmodule Cleat.CLI do
     host: :string,
     subdomain: :string,
     base_domain: :string,
+    ip: :string,
+    region: :string,
+    provider: :string,
+    ssh_user: :string,
+    ssh_key_file: :string,
     slug: :string,
     runtime: :string,
     binaries: :string,
@@ -87,6 +95,7 @@ defmodule Cleat.CLI do
   defp dispatch(["whoami"], opts), do: run(Whoami.run(opts))
   defp dispatch(["init"], opts), do: run(Init.run(opts))
   defp dispatch(["config" | rest], opts), do: run(Config.run(rest, opts))
+  defp dispatch(["completions" | rest], opts), do: run(Completions.run(rest, opts))
   defp dispatch(["servers" | rest], opts), do: run(Servers.run(rest, opts))
   defp dispatch(["apps" | rest], opts), do: run(Apps.run(rest, opts))
   defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
@@ -140,10 +149,15 @@ defmodule Cleat.CLI do
     Project
       init                                  Write .cleat_deploy/deploy.json
       config [list|get|set|unset]           Show or edit CLI config
+      completions bash|zsh                  Print a shell completion script
 
     Resources
       servers list                          List servers
       servers show ID                       Show one server
+      servers create --name N --ip IP \\
+        [--ssh-key-file F]                  Register a server
+      servers sync ID                       Refresh cloud specs
+      servers delete ID --yes               Delete a server
       apps list                             List apps
       apps show APP                         Show one app (id or slug)
       apps create --name N --repo O/R \\

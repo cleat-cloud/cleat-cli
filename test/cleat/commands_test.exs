@@ -1,6 +1,8 @@
 defmodule Cleat.CommandsTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureIO
+
   alias Cleat.Commands
 
   test "prefers --host when given" do
@@ -41,5 +43,37 @@ defmodule Cleat.CommandsTest do
              Commands.host(%{subdomain: "Bad_Name", base_domain: "sites.example.com"})
 
     assert message =~ "invalid subdomain"
+  end
+
+  test "reads the token from a file" do
+    path = tmp_file("cleat-token")
+    File.write!(path, "cleat_from_file\n")
+
+    assert Commands.token(%{token_file: path}) == "cleat_from_file"
+  end
+
+  test "reads the token from stdin when --token is -" do
+    capture_io("cleat_from_stdin\n", fn ->
+      assert Commands.token(%{token: "-"}) == "cleat_from_stdin"
+    end)
+  end
+
+  test "reads the password from a file" do
+    path = tmp_file("cleat-password")
+    File.write!(path, "s3cret\n")
+
+    assert Commands.password(%{password_file: path}) == "s3cret"
+  end
+
+  test "reads the password from stdin when --password is -" do
+    capture_io("s3cret\n", fn ->
+      assert Commands.password(%{password: "-"}) == "s3cret"
+    end)
+  end
+
+  defp tmp_file(prefix) do
+    path = Path.join(System.tmp_dir!(), "#{prefix}-#{System.unique_integer([:positive])}")
+    on_exit(fn -> File.rm(path) end)
+    path
   end
 end

@@ -10,7 +10,7 @@ defmodule Cleat.Commands.Login do
       {:error, "missing panel URL. Pass --panel URL or set CLEAT_PANEL_URL."}
     else
       email = opts[:email] || prompt("Email: ")
-      password = opts[:password] || Commands.read_password("Password: ")
+      password = Commands.password(opts) || Commands.read_password("Password: ")
 
       case Client.create_token(panel, email, password, opts[:name] || default_name()) do
         {:ok, body} ->

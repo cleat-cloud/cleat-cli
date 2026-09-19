@@ -19,6 +19,31 @@ defmodule Cleat.Output do
   def json(data), do: IO.puts(Jason.encode!(data, pretty: true))
 
   @doc """
+  Returns the part of `current` that is not in `previous`.
+
+  When `current` does not start with `previous` (the log was reset) the whole
+  `current` is returned.
+  """
+  def log_delta(previous, current) when is_binary(previous) and is_binary(current) do
+    previous_size = byte_size(previous)
+    current_size = byte_size(current)
+
+    cond do
+      current_size < previous_size ->
+        ""
+
+      current == previous ->
+        ""
+
+      String.starts_with?(current, previous) ->
+        binary_part(current, previous_size, current_size - previous_size)
+
+      true ->
+        current
+    end
+  end
+
+  @doc """
   Prints an aligned text table.
 
   `headers` is a list of strings; `rows` is a list of equal-length lists.

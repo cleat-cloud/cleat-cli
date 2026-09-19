@@ -3,11 +3,14 @@ defmodule Cleat.Commands.Servers do
 
   alias Cleat.{Client, Commands, Output}
 
-  @usage "usage: cleat servers list | cleat servers show ID"
+  @usage "usage: cleat servers list | cleat servers show ID | cleat servers create --name N --ip IP [--ssh-key-file F] | cleat servers delete ID --yes | cleat servers sync ID"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
   def run(["show", id], opts), do: show(id, opts)
+  def run(["create"], opts), do: create(opts)
+  def run(["delete", id | _rest], opts), do: delete(id, opts)
+  def run(["sync", id], opts), do: sync(id, opts)
   def run(_args, _opts), do: {:error, @usage}
 
   defp list(opts) do
@@ -67,4 +70,82 @@ defmodule Cleat.Commands.Servers do
       :ok
     end
   end
+
+  defp create(opts) do
+    with {:ok, ssh_key} <- ssh_key(opts) do
+      attrs =
+        %{
+          "name" => opts[:name],
+          "host_ip" => opts[:ip],
+          "ssh_user" => opts[:ssh_user] || "ubuntu",
+          "region" => opts[:region] || "us-east-1",
+          "provider" => opts[:provider] || "lightsail"
+        }
+        |> maybe_put("ssh_private_key", ssh_key)
+
+      case missing(attrs, [{"name", "--name"}, {"host_ip", "--ip"}]) do
+        [] ->
+          with {:ok, client} <- Commands.client(opts),
+               {:ok, body} <- Client.create_server(client, attrs) do
+            server = Commands.data(body)
+
+            Output.success(
+              "Created server #{server["name"]} (##{server["id"]}) #{server["host_ip"]}"
+            )
+
+            :ok
+          end
+
+        missing ->
+          {:error, "missing required options: #{Enum.join(missing, ", ")}"}
+      end
+    end
+  end
+
+  defp delete(id, opts) do
+    if opts[:yes] do
+      with {:ok, client} <- Commands.client(opts),
+           {:ok, _body} <- Client.delete_server(client, id) do
+        Output.success("Deleted server ##{id}")
+        :ok
+      end
+    else
+      {:error, "refusing to delete server ##{id}: pass --yes to confirm"}
+    end
+  end
+
+  defp sync(id, opts) do
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- Client.sync_server(client, id) do
+      server = Commands.data(body)
+
+      Output.success(
+        "Synced server ##{id} → #{server["bundle_name"] || "unknown"} (#{server["instance_status"]})"
+      )
+
+      :ok
+    end
+  end
+
+  defp ssh_key(opts) do
+    case opts[:ssh_key_file] do
+      nil ->
+        {:ok, nil}
+
+      path ->
+        case File.read(path) do
+          {:ok, content} -> {:ok, content}
+          {:error, _} -> {:error, "could not read SSH key file: #{path}"}
+        end
+    end
+  end
+
+  defp missing(attrs, required) do
+    required
+    |> Enum.filter(fn {key, _flag} -> attrs[key] in [nil, ""] end)
+    |> Enum.map(fn {_key, flag} -> flag end)
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

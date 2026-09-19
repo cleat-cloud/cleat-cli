@@ -3,13 +3,15 @@ defmodule Cleat.Commands.Apps do
 
   alias Cleat.{Client, Commands, Output}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy]"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] | cleat apps delete APP --yes | cleat apps logs APP"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
   def run(["show", app], opts), do: show(app, opts)
   def run(["create"], opts), do: create(opts)
   def run(["update", app | _rest], opts), do: update(app, opts)
+  def run(["delete", app | _rest], opts), do: delete(app, opts)
+  def run(["logs", app | _rest], opts), do: logs(app, opts)
   def run(_args, _opts), do: {:error, @usage}
 
   defp list(opts) do
@@ -119,20 +121,64 @@ defmodule Cleat.Commands.Apps do
       %{}
       |> maybe_put_branch(opts)
       |> maybe_put_auto_deploy(opts)
+      |> with_host(opts)
 
-    if attrs == %{} do
-      {:error, "nothing to update: pass --branch and/or --auto-deploy"}
-    else
+    case attrs do
+      {:error, message} ->
+        {:error, message}
+
+      attrs when map_size(attrs) == 0 ->
+        {:error, "nothing to update: pass --branch, --auto-deploy or --host"}
+
+      attrs ->
+        with {:ok, client} <- Commands.client(opts),
+             {:ok, body} <- Client.update_app(client, app, attrs) do
+          data = Commands.data(body)
+
+          Output.success(
+            "Updated #{data["slug"]} (branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]}, host=#{data["host"]})"
+          )
+
+          :ok
+        end
+    end
+  end
+
+  defp with_host(attrs, opts) do
+    case Commands.host(opts) do
+      {:ok, host} -> Map.put(attrs, "host", host)
+      {:error, :missing_host} -> attrs
+      {:error, message} -> {:error, message}
+    end
+  end
+
+  defp delete(app, opts) do
+    if opts[:yes] do
       with {:ok, client} <- Commands.client(opts),
-           {:ok, body} <- Client.update_app(client, app, attrs) do
-        data = Commands.data(body)
-
-        Output.success(
-          "Updated #{data["slug"]} (branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]})"
-        )
-
+           {:ok, _body} <- Client.delete_app(client, app) do
+        Output.success("Deleted app #{app}")
         :ok
       end
+    else
+      {:error, "refusing to delete #{app}: pass --yes to confirm"}
+    end
+  end
+
+  defp logs(app, opts) do
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- Client.app_logs(client, app) do
+      data = Commands.data(body)
+
+      if opts[:json] do
+        Output.json(data)
+      else
+        case data["lines"] || [] do
+          [] -> Output.info("No runtime logs for #{app}.")
+          lines -> Output.info(Enum.join(lines, "\n"))
+        end
+      end
+
+      :ok
     end
   end
 

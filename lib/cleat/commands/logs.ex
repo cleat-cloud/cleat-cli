@@ -36,10 +36,10 @@ defmodule Cleat.Commands.Logs do
     Poller.poll(fetch, step, printed)
   end
 
-  defp print_new(log, printed) when byte_size(log) > byte_size(printed) do
-    suffix = binary_part(log, byte_size(printed), byte_size(log) - byte_size(printed))
-    IO.write(suffix)
+  defp print_new(log, printed) do
+    case Output.log_delta(printed, log) do
+      "" -> :ok
+      delta -> IO.write(delta)
+    end
   end
-
-  defp print_new(_log, _printed), do: :ok
 end

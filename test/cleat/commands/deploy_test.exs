@@ -1,6 +1,8 @@
 defmodule Cleat.Commands.DeployTest do
   use ExUnit.Case, async: false
 
+  import ExUnit.CaptureIO
+
   alias Cleat.Commands.Deploy
 
   setup do
@@ -83,6 +85,34 @@ defmodule Cleat.Commands.DeployTest do
                server: "3",
                host: "my-repo.example.com"
              })
+  end
+
+  test "streams the build log while watching" do
+    {:ok, counter} = Agent.start_link(fn -> 0 end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      n = Agent.get_and_update(counter, fn n -> {n, n + 1} end)
+
+      {status, log} =
+        case n do
+          0 -> {"running", "step 1\n"}
+          1 -> {"running", "step 1\nstep 2\n"}
+          _ -> {"success", "step 1\nstep 2\nstep 3\n"}
+        end
+
+      Req.Test.json(conn, %{"data" => %{"id" => 1, "status" => status, "log" => log}})
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 Deploy.watch(Cleat.Client.new("https://panel.test", "tok"), 1, interval: 1)
+      end)
+
+    assert output =~ "step 1"
+    assert output =~ "step 2"
+    assert output =~ "step 3"
+    refute output =~ "step 1\nstep 1"
   end
 
   test "asks for a server when the repo is unknown" do

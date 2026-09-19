@@ -2,17 +2,15 @@ defmodule Cleat.ConfigTest do
   use ExUnit.Case, async: false
 
   setup do
-    path =
-      Path.join(
-        System.tmp_dir!(),
-        "cleat-config-#{System.unique_integer([:positive])}.json"
-      )
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-config-test-#{System.unique_integer([:positive])}")
 
+    path = Path.join(dir, "config.json")
     System.put_env("CLEAT_CONFIG", path)
 
     on_exit(fn ->
       System.delete_env("CLEAT_CONFIG")
-      File.rm(path)
+      File.rm_rf(dir)
     end)
 
     {:ok, path: path}
@@ -42,5 +40,16 @@ defmodule Cleat.ConfigTest do
     assert Cleat.Config.load() == %{}
     assert Cleat.Config.panel_url() == nil
     assert Cleat.Config.token() == nil
+  end
+
+  test "the config file is private (0600) and its dir is 0700", %{path: path} do
+    assert :ok = Cleat.Config.save(%{"token" => "cleat_secret"})
+
+    assert file_mode(path) == 0o600
+    assert file_mode(Path.dirname(path)) == 0o700
+  end
+
+  defp file_mode(path) do
+    path |> File.stat!() |> Map.fetch!(:mode) |> Bitwise.band(0o777)
   end
 end

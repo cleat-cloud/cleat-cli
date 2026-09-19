@@ -14,7 +14,7 @@ defmodule Cleat.Config do
   def path do
     case System.get_env(@env_config) do
       path when is_binary(path) and path != "" -> path
-      _ -> Path.join(config_dir(), "config.json")
+      _ -> Path.join(default_dir(), "config.json")
     end
   end
 
@@ -28,8 +28,20 @@ defmodule Cleat.Config do
 
   @doc "Persists the config map to disk."
   def save(config) when is_map(config) do
-    File.mkdir_p!(Path.dirname(path()))
-    File.write!(path(), Jason.encode!(config, pretty: true) <> "\n")
+    file = path()
+    dir = Path.dirname(file)
+    created? = not File.dir?(dir)
+
+    File.mkdir_p!(dir)
+
+    # Only tighten the directory when we created it or it is ours; never chmod
+    # a shared directory the user pointed CLEAT_CONFIG at.
+    if created? or dir == default_dir() do
+      _ = File.chmod(dir, 0o700)
+    end
+
+    File.write!(file, Jason.encode!(config, pretty: true) <> "\n")
+    _ = File.chmod(file, 0o600)
     :ok
   end
 
@@ -60,7 +72,7 @@ defmodule Cleat.Config do
     end
   end
 
-  defp config_dir do
+  defp default_dir do
     base =
       non_empty_env("XDG_CONFIG_HOME") ||
         Path.join(System.user_home!(), ".config")

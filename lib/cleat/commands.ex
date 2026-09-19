@@ -14,11 +14,44 @@ defmodule Cleat.Commands do
   end
 
   @doc """
-  Resolves the bearer token with the precedence: `--token` flag, `CLEAT_TOKEN`
-  env var, then the stored config.
+  Resolves the bearer token with the precedence: `--token` (use `-` for stdin),
+  `--token-file`, `CLEAT_TOKEN` env var, then the stored config.
   """
   def token(opts) do
-    opts[:token] || non_empty(System.get_env("CLEAT_TOKEN")) || Config.token()
+    cond do
+      opts[:token] == "-" ->
+        read_secret_line()
+
+      is_binary(opts[:token]) and opts[:token] != "" ->
+        opts[:token]
+
+      is_binary(opts[:token_file]) and opts[:token_file] != "" ->
+        read_secret_file(opts[:token_file])
+
+      true ->
+        non_empty(System.get_env("CLEAT_TOKEN")) || Config.token()
+    end
+  end
+
+  @doc """
+  Resolves a password from `--password` (use `-` for stdin) or `--password-file`.
+
+  Returns `nil` when not provided, so callers can prompt.
+  """
+  def password(opts) do
+    cond do
+      opts[:password] == "-" ->
+        read_secret_line()
+
+      is_binary(opts[:password]) and opts[:password] != "" ->
+        opts[:password]
+
+      is_binary(opts[:password_file]) and opts[:password_file] != "" ->
+        read_secret_file(opts[:password_file])
+
+      true ->
+        nil
+    end
   end
 
   @doc "Builds an authenticated client or returns an actionable error."
@@ -131,6 +164,20 @@ defmodule Cleat.Commands do
     _ -> :error
   catch
     _, _ -> :error
+  end
+
+  defp read_secret_line do
+    case IO.read(:stdio, :line) do
+      nil -> nil
+      data -> data |> String.trim_trailing("\n") |> String.trim_trailing("\r")
+    end
+  end
+
+  defp read_secret_file(path) do
+    case File.read(path) do
+      {:ok, content} -> String.trim(content)
+      {:error, _} -> nil
+    end
   end
 
   defp non_empty(nil), do: nil

@@ -86,39 +86,39 @@ defmodule Cleat.Commands.Deploy do
   end
 
   @doc false
-  def watch(client, id) do
+  def watch(client, id, opts \\ []) do
     fetch = fn -> Client.get_deployment(client, id) end
 
-    step = fn body, last_status ->
+    step = fn body, state ->
       deployment = Commands.data(body)
       status = deployment["status"]
+      log = deployment["log"] || ""
 
-      if status != last_status, do: Output.info("→ #{status}")
+      if status != state.status, do: Output.info("→ #{status}")
+      :ok = print_log_delta(log, state.log)
 
       cond do
         status == "success" ->
           Output.success("Deploy ##{id} succeeded")
-          print_log(deployment)
           :done
 
         status == "failed" ->
-          print_log(deployment)
           {:error, "deploy ##{id} failed"}
 
         true ->
-          {:continue, status}
+          {:continue, %{state | status: status, log: log}}
       end
     end
 
-    Poller.poll(fetch, step, nil)
+    Poller.poll(fetch, step, %{status: nil, log: ""}, opts)
   end
 
-  defp print_log(%{"log" => log}) when is_binary(log) and log != "" do
-    Output.info("")
-    Output.info(log)
+  defp print_log_delta(log, printed) do
+    case Output.log_delta(printed, log) do
+      "" -> :ok
+      delta -> IO.write(delta)
+    end
   end
-
-  defp print_log(_), do: :ok
 
   defp slugify(name) when is_binary(name) do
     name

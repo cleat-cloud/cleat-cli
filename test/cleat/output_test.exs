@@ -30,4 +30,18 @@ defmodule Cleat.OutputTest do
     output = capture_io(fn -> Cleat.Output.json(%{"a" => 1}) end)
     assert output =~ ~s("a": 1)
   end
+
+  test "log_delta returns only the appended part" do
+    assert Cleat.Output.log_delta("", "abc") == "abc"
+    assert Cleat.Output.log_delta("abc", "abcdef") == "def"
+  end
+
+  test "log_delta returns nothing when the log did not grow" do
+    assert Cleat.Output.log_delta("abcdef", "abcdef") == ""
+    assert Cleat.Output.log_delta("abcdef", "abc") == ""
+  end
+
+  test "log_delta returns the whole log when it was reset" do
+    assert Cleat.Output.log_delta("abc", "xyz") == "xyz"
+  end
 end
