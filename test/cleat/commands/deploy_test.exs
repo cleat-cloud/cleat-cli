@@ -32,4 +32,65 @@ defmodule Cleat.Commands.DeployTest do
     assert {:error, message} = Deploy.run("missing", %{panel: "https://panel.test", token: "tok"})
     assert message =~ "Not found"
   end
+
+  test "deploys a repo that is already registered" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => "trip-planner", "github_repo" => "owner/repo"}]
+          })
+
+        {"POST", "/api/v1/apps/trip-planner/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 9, "status" => "queued"}})
+      end
+    end)
+
+    assert :ok =
+             Deploy.run(nil, %{panel: "https://panel.test", token: "tok", repo: "owner/repo"})
+  end
+
+  test "registers an unknown repo when server and host are given" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["github_repo"] == "owner/my-repo"
+          assert body["server_id"] == "3"
+          assert body["host"] == "my-repo.example.com"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 11, "slug" => "my-repo"}})
+
+        {"POST", "/api/v1/apps/my-repo/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 12, "status" => "queued"}})
+      end
+    end)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/my-repo",
+               server: "3",
+               host: "my-repo.example.com"
+             })
+  end
+
+  test "asks for a server when the repo is unknown" do
+    Req.Test.stub(__MODULE__, fn conn -> Req.Test.json(conn, %{"data" => []}) end)
+
+    assert {:error, message} =
+             Deploy.run(nil, %{panel: "https://panel.test", token: "tok", repo: "owner/repo"})
+
+    assert message =~ "--server"
+  end
 end

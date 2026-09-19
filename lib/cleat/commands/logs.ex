@@ -1,9 +1,7 @@
 defmodule Cleat.Commands.Logs do
   @moduledoc false
 
-  alias Cleat.{Client, Commands, Output}
-
-  @poll_interval 3_000
+  alias Cleat.{Client, Commands, Output, Poller}
 
   def run(id, opts) do
     with {:ok, client} <- Commands.client(opts),
@@ -13,30 +11,29 @@ defmodule Cleat.Commands.Logs do
       Output.info(log)
 
       if opts[:follow] do
-        follow(client, id, deployment["status"], log)
+        follow(client, id, log)
       else
         :ok
       end
     end
   end
 
-  defp follow(client, id, status, printed) do
-    if status in ["queued", "running"] do
-      Process.sleep(@poll_interval)
+  defp follow(client, id, printed) do
+    fetch = fn -> Client.get_deployment(client, id) end
 
-      case Client.get_deployment(client, id) do
-        {:ok, body} ->
-          deployment = Commands.data(body)
-          log = deployment["log"] || ""
-          :ok = print_new(log, printed)
-          follow(client, id, deployment["status"], log)
+    step = fn body, printed ->
+      deployment = Commands.data(body)
+      log = deployment["log"] || ""
+      :ok = print_new(log, printed)
 
-        {:error, message} ->
-          {:error, message}
+      if deployment["status"] in ["queued", "running"] do
+        {:continue, log}
+      else
+        :done
       end
-    else
-      :ok
     end
+
+    Poller.poll(fetch, step, printed)
   end
 
   defp print_new(log, printed) when byte_size(log) > byte_size(printed) do

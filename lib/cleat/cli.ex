@@ -3,7 +3,20 @@ defmodule Cleat.CLI do
   Escript entrypoint for the `cleat` command-line interface.
   """
 
-  alias Cleat.Commands.{Apps, Deploy, Env, Init, Login, Logout, Logs, Servers, Status, Whoami}
+  alias Cleat.Commands.{
+    Apps,
+    Cancel,
+    Deploy,
+    Env,
+    Init,
+    Login,
+    Logout,
+    Logs,
+    Servers,
+    Status,
+    Whoami
+  }
+
   alias Cleat.Output
 
   @version Mix.Project.config()[:version]
@@ -20,6 +33,7 @@ defmodule Cleat.CLI do
     follow: :boolean,
     reveal: :boolean,
     deploy: :boolean,
+    auto_deploy: :boolean,
     server: :string,
     repo: :string,
     branch: :string,
@@ -72,8 +86,9 @@ defmodule Cleat.CLI do
   defp dispatch(["apps" | rest], opts), do: run(Apps.run(rest, opts))
   defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
 
-  defp dispatch(["deploy", app | _rest], opts), do: run(Deploy.run(app, opts))
-  defp dispatch(["deploy"], _opts), do: fail("usage: cleat deploy APP [--ref BRANCH] [--watch]")
+  defp dispatch(["deploy" | rest], opts), do: run(Deploy.run(List.first(rest), opts))
+  defp dispatch(["cancel", app | _rest], opts), do: run(Cancel.run(app, opts))
+  defp dispatch(["cancel"], _opts), do: fail("usage: cleat cancel APP")
 
   defp dispatch(["status", app | _rest], opts), do: run(Status.run(app, opts))
   defp dispatch(["status"], _opts), do: fail("usage: cleat status APP")
@@ -126,6 +141,8 @@ defmodule Cleat.CLI do
       apps show APP                         Show one app (id or slug)
       apps create --name N --repo O/R \\
         --host H --server ID                Create an app
+      apps update APP [--branch B] \\
+        [--auto-deploy|--no-auto-deploy]    Edit branch / auto-deploy
 
     Environment
       env list APP [--reveal]               List env vars (secrets masked)
@@ -134,6 +151,9 @@ defmodule Cleat.CLI do
 
     Deployments
       deploy APP [--ref BRANCH] [--watch]   Trigger a deploy (id or slug)
+      deploy --repo owner/repo --server ID \\
+        --host H [--branch B] [--watch]     Register if needed, then deploy
+      cancel APP                            Cancel the active deploy
       status APP                            List recent deployments for an app
       logs DEPLOYMENT_ID [--follow]         Print a deployment's build log
 

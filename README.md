@@ -59,10 +59,13 @@ panel and is stored as a hash server-side.
 | `cleat apps list` | List apps |
 | `cleat apps show APP` | Show one app (by id or slug) |
 | `cleat apps create` | Create an app |
+| `cleat apps update APP` | Edit branch / auto-deploy |
 | `cleat env list APP` | List env vars (secrets masked) |
 | `cleat env set APP K=V` | Upsert one or more env vars |
 | `cleat env unset APP KEY` | Delete an env var |
 | `cleat deploy APP` | Trigger a deploy (by id or slug) |
+| `cleat deploy --repo O/R` | Register if needed, then deploy |
+| `cleat cancel APP` | Cancel the active deploy |
 | `cleat status APP` | List recent deployments for an app |
 | `cleat logs DEPLOYMENT_ID` | Print a deployment's build log |
 
@@ -109,6 +112,29 @@ cleat env unset my-app OLD_KEY --deploy
 
 Keys must be `UPPER_SNAKE_CASE`. A value with `=` (`KEY=a=b`) is supported.
 Without `--deploy`, run `cleat deploy APP` to apply the changes.
+
+### Deploying a repo
+
+Deploy an app that is already registered:
+
+```bash
+cleat deploy my-app --watch
+cleat deploy my-app --ref deploy-cleat        # override the branch
+```
+
+Register and deploy in one shot. If the repo is unknown, pass `--server` and
+`--host`; the app is created with sane defaults (slug from the repo name):
+
+```bash
+cleat deploy --repo owner/repo --server 3 --host repo.example.com --watch
+```
+
+Edit an existing app and cancel a stuck deploy:
+
+```bash
+cleat apps update my-app --branch develop --no-auto-deploy
+cleat cancel my-app
+```
 
 ## Configuration
 

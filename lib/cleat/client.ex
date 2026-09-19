@@ -36,6 +36,12 @@ defmodule Cleat.Client do
   def get_app(client, id_or_slug), do: request(client, :get, "/api/v1/apps/#{id_or_slug}")
   def create_app(client, attrs), do: request(client, :post, "/api/v1/apps", json: attrs)
 
+  def update_app(client, app, attrs),
+    do: request(client, :patch, "/api/v1/apps/#{app}", json: attrs)
+
+  def cancel_deploy(client, app),
+    do: request(client, :post, "/api/v1/apps/#{app}/cancel", json: %{})
+
   def list_deployments(client, app),
     do: request(client, :get, "/api/v1/apps/#{app}/deployments")
 
