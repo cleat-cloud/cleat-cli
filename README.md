@@ -102,7 +102,8 @@ For static sites, `cleat init` detects the absence of `mix.exs`/`go.mod` plus an
 
 The panel optionally runs `npm ci && npm run build` and serves the output
 directory (`dist`, `build`, `public`, `_site`, `out`, or `build_dir`) through
-Caddy with an SPA fallback — no runtime process.
+Caddy with an SPA fallback — no runtime process. Plain HTML/CSS/JS folders with
+an `index.html` at the repo root are published as-is, no build step.
 
 Commit the manifest so the panel picks it up on the next deploy.
 
