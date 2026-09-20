@@ -175,6 +175,7 @@ defmodule Cleat.CLI do
         --host H --server ID                Create an app
       apps update APP [--branch B] \\
         [--auto-deploy|--no-auto-deploy]    Edit branch / auto-deploy
+      apps logs APP [--follow]              Runtime logs (systemd unit)
 
     Environment
       env list APP [--reveal]               List env vars (secrets masked)

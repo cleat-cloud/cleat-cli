@@ -59,6 +59,8 @@ panel and is stored as a hash server-side.
 | `cleat apps show APP` | Show one app (by id or slug) |
 | `cleat apps create` | Create an app |
 | `cleat apps update APP` | Edit branch / auto-deploy |
+| `cleat apps logs APP` | Print runtime logs (systemd unit) |
+| `cleat apps logs APP --follow` | Stream runtime logs |
 | `cleat env list APP` | List env vars (secrets masked) |
 | `cleat env set APP K=V` | Upsert one or more env vars |
 | `cleat env unset APP KEY` | Delete an env var |

@@ -86,6 +86,38 @@ defmodule Cleat.Commands.AppsTest do
     assert output =~ "line b"
   end
 
+  test "follows runtime logs and prints only new lines" do
+    Application.put_env(:cleat_cli, :logs_follow_interval_ms, 0)
+    Application.put_env(:cleat_cli, :logs_follow_max_polls, 1)
+
+    on_exit(fn ->
+      Application.delete_env(:cleat_cli, :logs_follow_interval_ms)
+      Application.delete_env(:cleat_cli, :logs_follow_max_polls)
+    end)
+
+    counter = :counters.new(1, [])
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      :counters.add(counter, 1, 1)
+      n = :counters.get(counter, 1)
+
+      lines = if n == 1, do: ["alpha", "beta"], else: ["beta", "gamma"]
+
+      Req.Test.json(conn, %{
+        "data" => %{"unit" => "phx-my-app", "lines" => lines, "fetched_at" => "t"}
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok = Apps.run(["logs", "my-app"], Map.put(@conn, :follow, true))
+      end)
+
+    assert output =~ "alpha"
+    assert output =~ "gamma"
+    assert length(String.split(output, "beta")) == 2
+  end
+
   test "requires at least one field to update" do
     assert {:error, message} = Apps.run(["update", "my-app"], @conn)
     assert message =~ "nothing to update"
