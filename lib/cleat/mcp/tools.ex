@@ -7,7 +7,7 @@ defmodule Cleat.MCP.Tools do
   `{:error, message}`; the server turns errors into `isError` tool results.
   """
 
-  alias Cleat.{Client, Commands, Runtime}
+  alias Cleat.{Client, Commands}
 
   @panel %{"type" => "string", "description" => "Panel base URL override"}
   @token %{"type" => "string", "description" => "Bearer token override"}
@@ -16,16 +16,22 @@ defmodule Cleat.MCP.Tools do
   def list, do: Enum.map(tools(), &Map.take(&1, ["name", "description", "inputSchema"]))
 
   def call(name, args) when is_map(args) do
-    case Enum.find(tools(), &(&1["name"] == name)) do
-      nil ->
-        {:error, "unknown tool: #{name}"}
+    try do
+      case Enum.find(tools(), &(&1["name"] == name)) do
+        nil ->
+          {:error, "unknown tool: #{name}"}
 
-      tool ->
-        with :ok <- validate(tool, args) do
-          tool["handler"].(args)
-        end
+        tool ->
+          with :ok <- validate(tool, args) do
+            tool["handler"].(args)
+          end
+      end
+    rescue
+      error -> {:error, Exception.message(error)}
     end
   end
+
+  def call(_name, _args), do: {:error, "invalid arguments"}
 
   defp validate(tool, args) do
     missing =
@@ -152,7 +158,7 @@ defmodule Cleat.MCP.Tools do
               "port" => args["port"],
               "runtime" => args["runtime"]
             }
-            |> Map.reject(fn {_k, v} -> is_nil(v) end)
+            |> Map.reject(fn {_k, v} -> is_nil(v) or v == "" end)
 
           with_client(args, fn client ->
             with {:ok, body} <- Client.create_app(client, attrs), do: {:ok, data_text(body)}
@@ -189,10 +195,14 @@ defmodule Cleat.MCP.Tools do
             }
             |> Map.reject(fn {_k, v} -> is_nil(v) end)
 
-          with_client(args, fn client ->
-            with {:ok, body} <- Client.update_app(client, args["app"], attrs),
-                 do: {:ok, data_text(body)}
-          end)
+          if attrs == %{} do
+            {:error, "nothing to update: pass branch, host, port, repo, runtime or auto_deploy"}
+          else
+            with_client(args, fn client ->
+              with {:ok, body} <- Client.update_app(client, args["app"], attrs),
+                   do: {:ok, data_text(body)}
+            end)
+          end
         end
       },
       %{
@@ -404,13 +414,9 @@ defmodule Cleat.MCP.Tools do
               do: Map.put(opts, :memory_max_mb, args["memory_max_mb"]),
               else: opts
 
-          case Cleat.Commands.Init.run(opts) do
-            :ok ->
-              {:ok,
-               json(%{
-                 "created" => ".cleat_deploy/deploy.json",
-                 "runtime" => args["runtime"] || Runtime.detect()
-               })}
+          case Cleat.Commands.Init.write(opts) do
+            {:ok, %{path: path, runtime: runtime}} ->
+              {:ok, json(%{"created" => path, "runtime" => runtime})}
 
             {:error, message} ->
               {:error, message}
