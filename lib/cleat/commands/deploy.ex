@@ -1,7 +1,7 @@
 defmodule Cleat.Commands.Deploy do
   @moduledoc false
 
-  alias Cleat.{Client, Commands, Output, Poller}
+  alias Cleat.{Client, Commands, Output, Poller, Runtime}
 
   def run(app, opts) do
     with {:ok, client} <- Commands.client(opts),
@@ -75,13 +75,22 @@ defmodule Cleat.Commands.Deploy do
       "branch" => opts[:branch] || "main",
       "host" => host,
       "server_id" => opts[:server],
-      "runtime" => opts[:runtime] || "phoenix"
+      "runtime" => runtime(opts)
     }
 
     with {:ok, body} <- Client.create_app(client, attrs) do
       app = Commands.data(body)
       Output.success("Registered app #{app["slug"]} (##{app["id"]})")
       {:ok, app["slug"]}
+    end
+  end
+
+  # An explicit --runtime always wins; otherwise detect from the local checkout so
+  # a TanStack Start / Next repo is registered as `node`, not `phoenix`.
+  defp runtime(opts) do
+    case opts[:runtime] do
+      nil -> Runtime.detect()
+      value -> Runtime.normalize(value) || value
     end
   end
 

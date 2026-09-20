@@ -59,7 +59,7 @@ panel and is stored as a hash server-side.
 | `cleat apps list` | List apps |
 | `cleat apps show APP` | Show one app (by id or slug) |
 | `cleat apps create` | Create an app |
-| `cleat apps update APP` | Edit branch / auto-deploy |
+| `cleat apps update APP` | Edit repo / branch / auto-deploy / host / port / runtime |
 | `cleat apps logs APP` | Print runtime logs (systemd unit) |
 | `cleat apps logs APP --follow` | Stream runtime logs |
 | `cleat env list APP` | List env vars (secrets masked) |
@@ -184,16 +184,21 @@ cleat deploy my-app --ref deploy-cleat        # override the branch
 ```
 
 Register and deploy in one shot. If the repo is unknown, pass `--server` and
-`--host`; the app is created with sane defaults (slug from the repo name):
+`--host`; the app is created with sane defaults (slug from the repo name). The
+runtime is detected from the local project the same way `cleat init` does, so a
+Next.js / TanStack Start repo registers as `node`; override it with `--runtime`
+(`phoenix`, `golang`, `node`, `rails` or `static`):
 
 ```bash
 cleat deploy --repo owner/repo --server 3 --host repo.example.com --watch
+cleat deploy --repo owner/lumina --server 3 --subdomain lumina --runtime node
 ```
 
-Edit an existing app and cancel a stuck deploy:
+Edit an existing app (including its runtime) and cancel a stuck deploy:
 
 ```bash
 cleat apps update my-app --branch develop --no-auto-deploy
+cleat apps update my-app --runtime node
 cleat cancel my-app
 ```
 
