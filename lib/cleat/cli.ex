@@ -174,7 +174,8 @@ defmodule Cleat.CLI do
       apps create --name N --repo O/R \\
         --host H --server ID                Create an app
       apps update APP [--branch B] \\
-        [--auto-deploy|--no-auto-deploy]    Edit branch / auto-deploy
+        [--auto-deploy|--no-auto-deploy] \\
+        [--host H] [--port N]               Edit branch / auto-deploy / host / port
       apps logs APP [--follow]              Runtime logs (systemd unit)
 
     Environment

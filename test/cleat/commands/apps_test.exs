@@ -51,6 +51,25 @@ defmodule Cleat.Commands.AppsTest do
     assert :ok = Apps.run(["update", "my-app"], Map.put(@conn, :host, "New.Example.com"))
   end
 
+  test "updates the port" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{"port" => 4030}
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "slug" => "my-app",
+          "branch" => "main",
+          "auto_deploy" => true,
+          "host" => "my-app.example.com",
+          "port" => 4030
+        }
+      })
+    end)
+
+    assert :ok = Apps.run(["update", "my-app"], Map.put(@conn, :port, 4030))
+  end
+
   test "deletes an app with --yes" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "DELETE"
