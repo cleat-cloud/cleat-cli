@@ -113,7 +113,10 @@ an `index.html` at the repo root are published as-is, no build step.
 For server-rendered JS (Next.js, TanStack Start), `cleat init` detects `next` or
 a `@tanstack/*-start` dependency and picks the `node` runtime. The panel installs
 Node, runs `npm ci && npm run build`, and keeps the app alive with a systemd unit
-behind Caddy (`reverse_proxy`). The start command is resolved at build time:
+behind Caddy (`reverse_proxy`). devDependencies are pruned after the build
+(`npm prune --omit=dev`), and TanStack Start / Nitro releases ship no
+`node_modules` at all since the `.output` bundle is self-contained. The start
+command is resolved at build time:
 
 1. `start_command`, if set in the manifest
 2. `npm run start`, if the project declares a `start` script
