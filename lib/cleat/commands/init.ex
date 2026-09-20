@@ -30,6 +30,9 @@ defmodule Cleat.Commands.Init do
     |> maybe_put("systemd_unit", opts[:systemd_unit])
     |> maybe_put("release_path", opts[:release_path])
     |> maybe_put("build_dir", opts[:build_dir])
+    |> maybe_put("build_command", opts[:build_command])
+    |> maybe_put("start_command", opts[:start_command])
+    |> maybe_put("node_version", opts[:node_version])
     |> maybe_put("memory_max_mb", opts[:memory_max_mb] || 400)
     |> maybe_put("caddy_mode", opts[:caddy_mode])
     |> maybe_put("caddy_listen_port", opts[:caddy_listen_port])
@@ -41,13 +44,41 @@ defmodule Cleat.Commands.Init do
     cond do
       File.exists?("go.mod") and not File.exists?("mix.exs") -> "golang"
       File.exists?("mix.exs") -> "phoenix"
+      node_project?() -> "node"
       File.exists?("index.html") or File.exists?("package.json") -> "static"
       true -> "phoenix"
     end
   end
 
+  # Next.js and TanStack Start run a long-lived Node server (SSR). Everything
+  # else with a package.json is treated as a static build.
+  defp node_project? do
+    case File.read("package.json") do
+      {:ok, contents} ->
+        case Jason.decode(contents) do
+          {:ok, pkg} ->
+            deps = Map.merge(pkg["dependencies"] || %{}, pkg["devDependencies"] || %{})
+            Enum.any?(Map.keys(deps), &node_framework?/1)
+
+          _ ->
+            false
+        end
+
+      _ ->
+        false
+    end
+  end
+
+  defp node_framework?("next"), do: true
+
+  defp node_framework?("@" <> rest),
+    do: String.ends_with?(rest, "-start") or String.ends_with?(rest, "/start")
+
+  defp node_framework?(_dep), do: false
+
   defp default_release_name("golang"), do: nil
   defp default_release_name("static"), do: nil
+  defp default_release_name("node"), do: nil
   defp default_release_name("phoenix"), do: mix_app()
 
   defp mix_app do

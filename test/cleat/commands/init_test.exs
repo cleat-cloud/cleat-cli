@@ -90,6 +90,46 @@ defmodule Cleat.Commands.InitTest do
     assert read_manifest()["runtime"] == "static"
   end
 
+  test "detects a Next.js project as node" do
+    File.write!(
+      "package.json",
+      ~s({"name":"app","dependencies":{"next":"15.0.0"},"scripts":{"build":"next build","start":"next start"}})
+    )
+
+    assert :ok = Init.run(%{})
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "node"
+    refute Map.has_key?(manifest, "release_name")
+  end
+
+  test "detects a TanStack Start project as node" do
+    File.write!(
+      "package.json",
+      ~s({"name":"app","dependencies":{"@tanstack/react-start":"^1.0.0"}})
+    )
+
+    assert :ok = Init.run(%{})
+
+    assert read_manifest()["runtime"] == "node"
+  end
+
+  test "writes node build/start/node_version options" do
+    assert :ok =
+             Init.run(%{
+               runtime: "node",
+               build_command: "npm run build:prod",
+               start_command: "npm start",
+               node_version: "20"
+             })
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "node"
+    assert manifest["build_command"] == "npm run build:prod"
+    assert manifest["start_command"] == "npm start"
+    assert manifest["node_version"] == "20"
+  end
+
   defp read_manifest do
     ".cleat_deploy/deploy.json"
     |> File.read!()
