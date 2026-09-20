@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Apps do
 
   alias Cleat.{Client, Commands, Output}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] [--port N] | cleat apps delete APP --yes | cleat apps logs APP [--follow]"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] [--port N] [--repo owner/repo] | cleat apps delete APP --yes | cleat apps logs APP [--follow]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
@@ -123,6 +123,7 @@ defmodule Cleat.Commands.Apps do
       |> maybe_put_branch(opts)
       |> maybe_put_auto_deploy(opts)
       |> maybe_put_port(opts)
+      |> maybe_put_repo(opts)
       |> with_host(opts)
 
     case attrs do
@@ -130,7 +131,7 @@ defmodule Cleat.Commands.Apps do
         {:error, message}
 
       attrs when map_size(attrs) == 0 ->
-        {:error, "nothing to update: pass --branch, --auto-deploy, --host or --port"}
+        {:error, "nothing to update: pass --branch, --auto-deploy, --host, --port or --repo"}
 
       attrs ->
         with {:ok, client} <- Commands.client(opts),
@@ -138,7 +139,7 @@ defmodule Cleat.Commands.Apps do
           data = Commands.data(body)
 
           Output.success(
-            "Updated #{data["slug"]} (branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]}, host=#{data["host"]}, port=#{data["port"]})"
+            "Updated #{data["slug"]} (repo=#{data["github_repo"]}, branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]}, host=#{data["host"]}, port=#{data["port"]})"
           )
 
           :ok
@@ -246,6 +247,13 @@ defmodule Cleat.Commands.Apps do
     case opts[:port] do
       nil -> attrs
       port -> Map.put(attrs, "port", port)
+    end
+  end
+
+  defp maybe_put_repo(attrs, opts) do
+    case opts[:repo] do
+      nil -> attrs
+      repo -> Map.put(attrs, "github_repo", repo)
     end
   end
 
