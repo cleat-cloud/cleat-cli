@@ -107,6 +107,29 @@ directory (`dist`, `build`, `public`, `_site`, `out`, or `build_dir`) through
 Caddy with an SPA fallback — no runtime process. Plain HTML/CSS/JS folders with
 an `index.html` at the repo root are published as-is, no build step.
 
+For server-rendered JS (Next.js, TanStack Start), `cleat init` detects `next` or
+a `@tanstack/*-start` dependency and picks the `node` runtime. The panel installs
+Node, runs `npm ci && npm run build`, and keeps the app alive with a systemd unit
+behind Caddy (`reverse_proxy`). The start command is resolved at build time:
+
+1. `start_command`, if set in the manifest
+2. `npm run start`, if the project declares a `start` script
+3. `node .output/server/index.mjs` for TanStack Start / Nitro output
+4. `npm exec -- next start` for Next.js output
+
+```json
+{
+  "runtime": "node",
+  "build_command": "npm run build",
+  "start_command": "npm start",
+  "node_version": "22"
+}
+```
+
+Only `runtime` is required; `build_command`, `start_command`, and `node_version`
+(uses the latest 22.x when omitted) are optional overrides. Point `build_dir` at
+a subdirectory for monorepos (`{"runtime": "node", "build_dir": "web"}`).
+
 Commit the manifest so the panel picks it up on the next deploy.
 
 ### Environment variables
