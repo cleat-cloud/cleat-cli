@@ -87,6 +87,96 @@ defmodule Cleat.Commands.DeployTest do
              })
   end
 
+  test "registers an unknown repo using the detected runtime" do
+    dir = tmp_project(~s({"dependencies":{"@tanstack/react-start":"^1.0.0"}}))
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    parent = Path.dirname(dir)
+    original = File.cwd!()
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["runtime"] == "node"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 30, "slug" => "lumina"}})
+
+        {"POST", "/api/v1/apps/lumina/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 31, "status" => "queued"}})
+      end
+    end)
+
+    File.cd!(dir)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/lumina",
+               server: "3",
+               host: "lumina.example.com"
+             })
+
+    File.cd!(original)
+    assert File.dir?(parent)
+  end
+
+  test "an explicit --runtime wins over detection" do
+    dir = tmp_project(~s({"dependencies":{"@tanstack/react-start":"^1.0.0"}}))
+    on_exit(fn -> File.rm_rf(dir) end)
+    original = File.cwd!()
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          assert Jason.decode!(Req.Test.raw_body(conn))["runtime"] == "phoenix"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 40, "slug" => "lumina"}})
+
+        {"POST", "/api/v1/apps/lumina/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 41, "status" => "queued"}})
+      end
+    end)
+
+    File.cd!(dir)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/lumina",
+               server: "3",
+               host: "lumina.example.com",
+               runtime: "phoenix"
+             })
+
+    File.cd!(original)
+  end
+
+  defp tmp_project(package_json) do
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-deploy-proj-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "package.json"), package_json)
+    dir
+  end
+
   test "streams the build log while watching" do
     {:ok, counter} = Agent.start_link(fn -> 0 end)
 

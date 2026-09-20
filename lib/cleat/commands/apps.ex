@@ -1,9 +1,9 @@
 defmodule Cleat.Commands.Apps do
   @moduledoc false
 
-  alias Cleat.{Client, Commands, Output}
+  alias Cleat.{Client, Commands, Output, Runtime}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] [--port N] [--repo owner/repo] | cleat apps delete APP --yes | cleat apps logs APP [--follow]"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] [--port N] [--repo owner/repo] [--runtime R] | cleat apps delete APP --yes | cleat apps logs APP [--follow]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
@@ -93,7 +93,7 @@ defmodule Cleat.Commands.Apps do
           "branch" => opts[:branch] || "main",
           "host" => host,
           "port" => opts[:port] || 4000,
-          "runtime" => opts[:runtime] || "phoenix",
+          "runtime" => runtime(opts),
           "server_id" => opts[:server]
         }
 
@@ -124,6 +124,7 @@ defmodule Cleat.Commands.Apps do
       |> maybe_put_auto_deploy(opts)
       |> maybe_put_port(opts)
       |> maybe_put_repo(opts)
+      |> maybe_put_runtime(opts)
       |> with_host(opts)
 
     case attrs do
@@ -131,7 +132,8 @@ defmodule Cleat.Commands.Apps do
         {:error, message}
 
       attrs when map_size(attrs) == 0 ->
-        {:error, "nothing to update: pass --branch, --auto-deploy, --host, --port or --repo"}
+        {:error,
+         "nothing to update: pass --branch, --auto-deploy, --host, --port, --repo or --runtime"}
 
       attrs ->
         with {:ok, client} <- Commands.client(opts),
@@ -139,11 +141,20 @@ defmodule Cleat.Commands.Apps do
           data = Commands.data(body)
 
           Output.success(
-            "Updated #{data["slug"]} (repo=#{data["github_repo"]}, branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]}, host=#{data["host"]}, port=#{data["port"]})"
+            "Updated #{data["slug"]} (repo=#{data["github_repo"]}, branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]}, host=#{data["host"]}, port=#{data["port"]}, runtime=#{data["runtime"]})"
           )
 
           :ok
         end
+    end
+  end
+
+  # An explicit --runtime always wins; otherwise detect from the local checkout so
+  # a TanStack Start / Next repo is registered as `node`, not `phoenix`.
+  defp runtime(opts) do
+    case opts[:runtime] do
+      nil -> Runtime.detect()
+      value -> Runtime.normalize(value) || value
     end
   end
 
@@ -254,6 +265,13 @@ defmodule Cleat.Commands.Apps do
     case opts[:repo] do
       nil -> attrs
       repo -> Map.put(attrs, "github_repo", repo)
+    end
+  end
+
+  defp maybe_put_runtime(attrs, opts) do
+    case opts[:runtime] do
+      nil -> attrs
+      value -> Map.put(attrs, "runtime", Runtime.normalize(value) || value)
     end
   end
 

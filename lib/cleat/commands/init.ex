@@ -1,7 +1,7 @@
 defmodule Cleat.Commands.Init do
   @moduledoc false
 
-  alias Cleat.Output
+  alias Cleat.{Output, Runtime}
 
   @manifest_dir ".cleat_deploy"
   @manifest_path Path.join(@manifest_dir, "deploy.json")
@@ -23,7 +23,7 @@ defmodule Cleat.Commands.Init do
   end
 
   defp build_manifest(opts) do
-    runtime = opts[:runtime] || detect_runtime()
+    runtime = opts[:runtime] || Runtime.detect()
 
     %{"runtime" => runtime}
     |> maybe_put("release_name", opts[:release_name] || default_release_name(runtime))
@@ -40,55 +40,6 @@ defmodule Cleat.Commands.Init do
     |> put_binaries(runtime, opts)
     |> maybe_put("solo_server", opts[:solo_server])
   end
-
-  defp detect_runtime do
-    cond do
-      File.exists?("go.mod") and not File.exists?("mix.exs") -> "golang"
-      File.exists?("mix.exs") -> "phoenix"
-      rails_project?() -> "rails"
-      node_project?() -> "node"
-      File.exists?("index.html") or File.exists?("package.json") -> "static"
-      true -> "phoenix"
-    end
-  end
-
-  defp rails_project? do
-    File.exists?("Gemfile") and
-      (File.exists?("config/application.rb") or gemfile_has_rails?())
-  end
-
-  defp gemfile_has_rails? do
-    case File.read("Gemfile") do
-      {:ok, contents} -> String.contains?(contents, "rails")
-      _ -> false
-    end
-  end
-
-  # Next.js and TanStack Start run a long-lived Node server (SSR). Everything
-  # else with a package.json is treated as a static build.
-  defp node_project? do
-    case File.read("package.json") do
-      {:ok, contents} ->
-        case Jason.decode(contents) do
-          {:ok, pkg} ->
-            deps = Map.merge(pkg["dependencies"] || %{}, pkg["devDependencies"] || %{})
-            Enum.any?(Map.keys(deps), &node_framework?/1)
-
-          _ ->
-            false
-        end
-
-      _ ->
-        false
-    end
-  end
-
-  defp node_framework?("next"), do: true
-
-  defp node_framework?("@" <> rest),
-    do: String.ends_with?(rest, "-start") or String.ends_with?(rest, "/start")
-
-  defp node_framework?(_dep), do: false
 
   defp default_release_name("golang"), do: nil
   defp default_release_name("static"), do: nil

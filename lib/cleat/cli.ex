@@ -172,10 +172,11 @@ defmodule Cleat.CLI do
       apps list                             List apps
       apps show APP                         Show one app (id or slug)
       apps create --name N --repo O/R \\
-        --host H --server ID                Create an app
+        --host H --server ID [--runtime R]   Create an app
       apps update APP [--branch B] \\
         [--auto-deploy|--no-auto-deploy] \\
-        [--host H] [--port N] [--repo O/R]  Edit repo / branch / auto-deploy / host / port
+        [--host H] [--port N] [--repo O/R] \\
+        [--runtime R]                       Edit repo / branch / auto-deploy / host / port / runtime
       apps logs APP [--follow]              Runtime logs (systemd unit)
 
     Environment
@@ -186,7 +187,8 @@ defmodule Cleat.CLI do
     Deployments
       deploy APP [--ref BRANCH] [--watch]   Trigger a deploy (id or slug)
       deploy --repo owner/repo --server ID \\
-        --host H [--branch B] [--watch]     Register if needed, then deploy
+        --host H [--branch B] [--runtime R] [--watch]
+                                            Register if needed, then deploy
       drop [DIR|FILE] --app APP [--watch]   Publish a folder or file (no git)
       drop [DIR|FILE] --server ID \\
         --host H [--slug S] [--watch]       Create the static app, then drop
@@ -200,8 +202,7 @@ defmodule Cleat.CLI do
       --host HOST      Full app domain (e.g. landing.sites.example.com)
       --subdomain NAME Shortcut: NAME.<base_domain> (env CLEAT_BASE_DOMAIN)
       --base-domain D  Base domain for --subdomain
-      --json           Machine-readable output
-      -h, --help       Show this help
+      --json           Machine-readable output      -h, --help       Show this help
       -v, --version    Show the CLI version
     """
   end
