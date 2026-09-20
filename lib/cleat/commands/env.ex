@@ -36,7 +36,7 @@ defmodule Cleat.Commands.Env do
 
         Output.table(rows, ["KEY", "VALUE", "SENSITIVE"])
 
-        if not opts[:reveal] and Enum.any?(vars, & &1["sensitive"]) do
+        if opts[:reveal] != true and Enum.any?(vars, & &1["sensitive"]) do
           Output.info("")
           Output.warn("Sensitive values are masked. Re-run with --reveal to show them.")
         end
