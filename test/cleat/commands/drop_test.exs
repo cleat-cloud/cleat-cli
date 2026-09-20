@@ -97,9 +97,64 @@ defmodule Cleat.Commands.DropTest do
              )
   end
 
-  test "errors on a missing directory" do
+  test "publishes a single HTML file as index.html at the site root" do
+    file =
+      Path.join(
+        System.tmp_dir!(),
+        "almanaque_#{System.unique_integer([:positive])}.html"
+      )
+
+    File.write!(file, "<html>almanaque</html>")
+    on_exit(fn -> File.rm(file) end)
+
+    slug = Path.basename(file) |> Path.rootname() |> String.replace("_", "-")
+    drops_path = "/api/v1/apps/#{slug}/drops"
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["runtime"] == "static"
+          assert body["slug"] == slug
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 11, "slug" => slug}})
+
+        {"POST", ^drops_path} ->
+          tarball =
+            Path.join(
+              System.tmp_dir!(),
+              "cleat_test_drop_#{System.unique_integer([:positive])}.tar.gz"
+            )
+
+          File.write!(tarball, Req.Test.raw_body(conn))
+
+          {listing, 0} = System.cmd("tar", ["-tzf", tarball])
+          assert listing =~ "./index.html"
+          refute listing =~ Path.basename(file)
+
+          {content, 0} = System.cmd("tar", ["-xzf", tarball, "-O", "./index.html"])
+          assert content =~ "almanaque"
+
+          File.rm(tarball)
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 12, "status" => "queued"}})
+      end
+    end)
+
+    assert :ok =
+             Drop.run(
+               [file],
+               @conn |> Map.put(:server, "3") |> Map.put(:host, "almanaque.example.com")
+             )
+  end
+
+  test "errors on a missing path" do
     assert {:error, message} = Drop.run(["/nope/missing"], @conn)
-    assert message =~ "not a directory"
+    assert message =~ "not a file or directory"
   end
 
   test "requires a target when --app is absent", %{dir: dir} do
