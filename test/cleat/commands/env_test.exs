@@ -46,4 +46,29 @@ defmodule Cleat.Commands.EnvTest do
 
     assert :ok = Env.run(["list", "my-app"], Map.put(@conn, :reveal, true))
   end
+
+  test "lists variables without --reveal (opts lacks the flag)" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.query_string == ""
+      Req.Test.json(conn, %{"data" => [%{"key" => "FOO", "value" => "1", "sensitive" => false}]})
+    end)
+
+    # `not opts[:reveal]` raised ArgumentError because nil is not a boolean
+    assert :ok = Env.run(["list", "my-app"], @conn)
+  end
+
+  test "warns when sensitive values are masked" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.json(conn, %{
+        "data" => [%{"key" => "SECRET", "value" => "•••", "sensitive" => true}]
+      })
+    end)
+
+    output =
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert :ok = Env.run(["list", "my-app"], @conn)
+      end)
+
+    assert output =~ "--reveal"
+  end
 end
