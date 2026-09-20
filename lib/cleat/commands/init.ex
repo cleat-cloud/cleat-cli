@@ -33,6 +33,7 @@ defmodule Cleat.Commands.Init do
     |> maybe_put("build_command", opts[:build_command])
     |> maybe_put("start_command", opts[:start_command])
     |> maybe_put("node_version", opts[:node_version])
+    |> maybe_put("ruby_version", opts[:ruby_version])
     |> maybe_put("memory_max_mb", opts[:memory_max_mb] || 400)
     |> maybe_put("caddy_mode", opts[:caddy_mode])
     |> maybe_put("caddy_listen_port", opts[:caddy_listen_port])
@@ -44,9 +45,22 @@ defmodule Cleat.Commands.Init do
     cond do
       File.exists?("go.mod") and not File.exists?("mix.exs") -> "golang"
       File.exists?("mix.exs") -> "phoenix"
+      rails_project?() -> "rails"
       node_project?() -> "node"
       File.exists?("index.html") or File.exists?("package.json") -> "static"
       true -> "phoenix"
+    end
+  end
+
+  defp rails_project? do
+    File.exists?("Gemfile") and
+      (File.exists?("config/application.rb") or gemfile_has_rails?())
+  end
+
+  defp gemfile_has_rails? do
+    case File.read("Gemfile") do
+      {:ok, contents} -> String.contains?(contents, "rails")
+      _ -> false
     end
   end
 
@@ -79,6 +93,7 @@ defmodule Cleat.Commands.Init do
   defp default_release_name("golang"), do: nil
   defp default_release_name("static"), do: nil
   defp default_release_name("node"), do: nil
+  defp default_release_name("rails"), do: nil
   defp default_release_name("phoenix"), do: mix_app()
 
   defp mix_app do
