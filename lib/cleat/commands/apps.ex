@@ -63,7 +63,8 @@ defmodule Cleat.Commands.Apps do
             ["Auto deploy", data["auto_deploy"]],
             ["Server", server_name(data)],
             ["Systemd unit", data["systemd_unit"]],
-            ["Release path", data["release_path"]]
+            ["Release path", data["release_path"]],
+            ["Data dir", data["data_dir"]]
           ],
           ["Field", "Value"]
         )
