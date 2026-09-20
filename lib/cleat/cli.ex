@@ -187,8 +187,8 @@ defmodule Cleat.CLI do
       deploy APP [--ref BRANCH] [--watch]   Trigger a deploy (id or slug)
       deploy --repo owner/repo --server ID \\
         --host H [--branch B] [--watch]     Register if needed, then deploy
-      drop [DIR] --app APP [--watch]        Publish a local folder (no git)
-      drop [DIR] --server ID \\
+      drop [DIR|FILE] --app APP [--watch]   Publish a folder or file (no git)
+      drop [DIR|FILE] --server ID \\
         --host H [--slug S] [--watch]       Create the static app, then drop
       cancel APP                            Cancel the active deploy
       status APP                            List recent deployments for an app

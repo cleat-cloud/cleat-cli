@@ -67,7 +67,7 @@ panel and is stored as a hash server-side.
 | `cleat env unset APP KEY` | Delete an env var |
 | `cleat deploy APP` | Trigger a deploy (by id or slug) |
 | `cleat deploy --repo O/R` | Register if needed, then deploy |
-| `cleat drop [DIR]` | Publish a local folder, no git (Netlify-Drop style) |
+| `cleat drop [DIR\|FILE]` | Publish a local folder or file, no git (Netlify-Drop style) |
 | `cleat cancel APP` | Cancel the active deploy |
 | `cleat status APP` | List recent deployments for an app |
 | `cleat logs DEPLOYMENT_ID` | Print a deployment's build log |
@@ -196,8 +196,8 @@ cleat cancel my-app
 
 ### Drop (no git)
 
-`cleat drop` packages a local folder and publishes it as a static site — no
-repository needed. It works exactly like Netlify Drop:
+`cleat drop` packages a local folder or a single file and publishes it as a
+static site — no repository needed. It works exactly like Netlify Drop:
 
 ```bash
 # against an existing static app
@@ -205,6 +205,9 @@ cleat drop ./dist --app landing --watch
 
 # create the static app on the fly (server + host required)
 cleat drop ./site --server 3 --host landing.example.com --watch
+
+# a single file: uploaded as index.html (or its own name when not HTML)
+cleat drop ./almanaque.html --server 3 --host almanaque.example.com --watch
 ```
 
 `.git`, `node_modules` and `.DS_Store` are excluded from the upload. The panel

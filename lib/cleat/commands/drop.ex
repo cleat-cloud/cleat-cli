@@ -6,56 +6,93 @@ defmodule Cleat.Commands.Drop do
   alias Cleat.{Client, Commands, Output}
   alias Cleat.Commands.Deploy
 
-  @usage "usage: cleat drop [DIR] --app APP   (or --server ID --host DOMAIN [--slug SLUG])"
+  @usage "usage: cleat drop [DIR|FILE] --app APP   (or --server ID --host DOMAIN [--slug SLUG])"
   @excludes ~w(.git node_modules .DS_Store)
 
   def run(args, opts) do
-    dir = List.first(args) || "."
-    expanded = Path.expand(dir)
+    target = List.first(args) || "."
+    expanded = Path.expand(target)
 
     cond do
-      not File.dir?(expanded) ->
-        {:error, "not a directory: #{dir}"}
-
-      true ->
-        with {:ok, tarball} <- pack(expanded) do
-          try do
-            with {:ok, client} <- Commands.client(opts),
-                 {:ok, app} <- resolve_app(client, expanded, opts),
-                 {:ok, body} <- Client.create_drop(client, app, tarball, opts[:ref]) do
-              deployment = Commands.data(body)
-
-              if opts[:json] do
-                Output.json(deployment)
-              else
-                Output.success("Dropped #{dir} → deploy ##{deployment["id"]} queued for #{app}")
-              end
-
-              if opts[:watch], do: Deploy.watch(client, deployment["id"]), else: :ok
-            end
-          after
-            File.rm(tarball)
-          end
-        end
+      File.regular?(expanded) -> drop_file(target, expanded, opts)
+      File.dir?(expanded) -> drop_dir(target, expanded, opts)
+      true -> {:error, "not a file or directory: #{target}"}
     end
   end
 
-  defp resolve_app(client, dir, opts) do
+  # A single file is staged in a temp dir so it can be packed like a folder.
+  # HTML becomes index.html so the site root serves it.
+  defp drop_file(label, file, opts) do
+    staging =
+      Path.join(
+        System.tmp_dir!(),
+        "cleat_drop_site_#{System.system_time(:millisecond)}_#{:erlang.unique_integer([:positive])}"
+      )
+
+    File.mkdir_p!(staging)
+
+    name =
+      if String.downcase(Path.extname(file)) in [".html", ".htm"] do
+        "index.html"
+      else
+        Path.basename(file)
+      end
+
+    slug = Path.basename(file) |> Path.rootname() |> slugify()
+
+    try do
+      with :ok <- File.cp(file, Path.join(staging, name)) do
+        drop_dir(label, staging, opts, slug)
+      else
+        {:error, reason} -> {:error, "could not stage #{label}: #{:file.format_error(reason)}"}
+      end
+    after
+      File.rm_rf(staging)
+    end
+  end
+
+  defp drop_dir(label, dir, opts) do
+    drop_dir(label, dir, opts, slugify(Path.basename(dir)))
+  end
+
+  defp drop_dir(label, dir, opts, default_slug) do
+    with {:ok, tarball} <- pack(dir) do
+      try do
+        with {:ok, client} <- Commands.client(opts),
+             {:ok, app} <- resolve_app(client, opts, default_slug),
+             {:ok, body} <- Client.create_drop(client, app, tarball, opts[:ref]) do
+          deployment = Commands.data(body)
+
+          if opts[:json] do
+            Output.json(deployment)
+          else
+            Output.success("Dropped #{label} → deploy ##{deployment["id"]} queued for #{app}")
+          end
+
+          if opts[:watch], do: Deploy.watch(client, deployment["id"]), else: :ok
+        end
+      after
+        File.rm(tarball)
+      end
+    end
+  end
+
+  defp resolve_app(client, opts, default_slug) do
     case opts[:app] do
       app when is_binary(app) and app != "" -> {:ok, app}
-      _ -> register_app(client, dir, opts)
+      _ -> register_app(client, opts, default_slug)
     end
   end
 
-  defp register_app(client, dir, opts) do
-    slug = opts[:slug] || slugify(Path.basename(dir))
+  defp register_app(client, opts, default_slug) do
+    slug = opts[:slug] || default_slug
 
     cond do
       is_nil(opts[:server]) ->
         {:error, @usage}
 
       is_nil(slug) ->
-        {:error, "could not derive a slug from #{dir}; pass --slug"}
+        {:error, "could not derive a slug; pass --slug"}
 
       true ->
         case Commands.host(opts) do
