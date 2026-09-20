@@ -1,11 +1,12 @@
 # cleat-cli
 
 `cleat` is the command-line client for [Cleat](https://github.com/puppe1990/cleat-deploy),
-a control panel that deploys Phoenix/Elixir and Go apps to Hetzner Cloud and AWS
-Lightsail over SSH.
+a self-hosted PaaS that deploys Phoenix/Elixir, Go, Node (Next.js / TanStack
+Start), Ruby on Rails and static apps to Hetzner Cloud and AWS Lightsail over
+SSH.
 
-It talks to the panel's JSON API (`/api/v1`) to list servers and apps, trigger
-deploys, and watch build logs.
+It talks to the panel's JSON API (`/api/v1`) to list servers and apps, manage env
+vars, trigger deploys, and watch build and runtime logs.
 
 ## Install
 
