@@ -130,6 +130,24 @@ Only `runtime` is required; `build_command`, `start_command`, and `node_version`
 (uses the latest 22.x when omitted) are optional overrides. Point `build_dir` at
 a subdirectory for monorepos (`{"runtime": "node", "build_dir": "web"}`).
 
+For Ruby on Rails, `cleat init` detects a `Gemfile` plus `config/application.rb`
+(or a `rails` gem) and picks the `rails` runtime. The panel installs Ruby via
+mise, runs `bundle install`, `assets:precompile` and `db:prepare`, then serves
+the app with Puma behind Caddy. `DATABASE_URL`, `SECRET_KEY_BASE` and
+`RAILS_MASTER_KEY` come from the panel env vars.
+
+```json
+{
+  "runtime": "rails",
+  "ruby_version": "3.3.6",
+  "start_command": "bundle exec puma -C config/puma.rb"
+}
+```
+
+Ruby version resolution order: `ruby_version` → `.ruby-version` → the Gemfile
+`ruby` directive → 3.3.6. Start command: `start_command` → `bundle exec puma -C
+config/puma.rb` → `bundle exec puma -b tcp://0.0.0.0:$PORT`.
+
 Commit the manifest so the panel picks it up on the next deploy.
 
 ### Environment variables

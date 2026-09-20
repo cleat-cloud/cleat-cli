@@ -114,6 +114,26 @@ defmodule Cleat.Commands.InitTest do
     assert read_manifest()["runtime"] == "node"
   end
 
+  test "detects a Rails project as rails" do
+    File.write!("Gemfile", ~s(source "https://rubygems.org"\ngem "rails", "~> 7.1"\n))
+    File.mkdir_p!("config")
+    File.write!("config/application.rb", "module App\nend\n")
+
+    assert :ok = Init.run(%{})
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "rails"
+    refute Map.has_key?(manifest, "release_name")
+  end
+
+  test "writes a rails ruby_version option" do
+    assert :ok = Init.run(%{runtime: "rails", ruby_version: "3.2.2"})
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "rails"
+    assert manifest["ruby_version"] == "3.2.2"
+  end
+
   test "writes node build/start/node_version options" do
     assert :ok =
              Init.run(%{
