@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Apps do
 
   alias Cleat.{Client, Commands, Output}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] | cleat apps delete APP --yes | cleat apps logs APP"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] | cleat apps delete APP --yes | cleat apps logs APP [--follow]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
@@ -168,19 +168,60 @@ defmodule Cleat.Commands.Apps do
     with {:ok, client} <- Commands.client(opts),
          {:ok, body} <- Client.app_logs(client, app) do
       data = Commands.data(body)
+      lines = data["lines"] || []
 
       if opts[:json] do
         Output.json(data)
+        :ok
       else
-        case data["lines"] || [] do
-          [] -> Output.info("No runtime logs for #{app}.")
-          lines -> Output.info(Enum.join(lines, "\n"))
+        print_lines(lines, app, opts[:follow])
+
+        if opts[:follow] do
+          follow(client, app, MapSet.new(lines), 0)
+        else
+          :ok
         end
       end
-
-      :ok
     end
   end
+
+  defp print_lines([], app, true),
+    do: Output.info("No runtime logs for #{app} yet. Following…")
+
+  defp print_lines([], app, _follow), do: Output.info("No runtime logs for #{app}.")
+  defp print_lines(lines, _app, _follow), do: Output.info(Enum.join(lines, "\n"))
+
+  defp follow(client, app, seen, polls) do
+    if polls >= max_polls() do
+      :ok
+    else
+      Process.sleep(interval_ms())
+
+      case Client.app_logs(client, app) do
+        {:ok, body} ->
+          lines = Commands.data(body)["lines"] || []
+          {fresh, seen} = fresh_lines(lines, seen)
+          Enum.each(fresh, &IO.puts/1)
+          follow(client, app, prune(seen, lines), polls + 1)
+
+        {:error, message} ->
+          Output.error(message)
+          :ok
+      end
+    end
+  end
+
+  defp fresh_lines(lines, seen) do
+    fresh = Enum.reject(lines, &MapSet.member?(seen, &1))
+    {fresh, Enum.reduce(lines, seen, &MapSet.put(&2, &1))}
+  end
+
+  defp prune(seen, lines) do
+    if MapSet.size(seen) > 5_000, do: MapSet.new(lines), else: seen
+  end
+
+  defp max_polls, do: Application.get_env(:cleat_cli, :logs_follow_max_polls, :infinity)
+  defp interval_ms, do: Application.get_env(:cleat_cli, :logs_follow_interval_ms, 2_000)
 
   defp maybe_put_branch(attrs, opts) do
     case opts[:branch] do
