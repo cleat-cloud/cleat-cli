@@ -21,9 +21,24 @@ defmodule Cleat.MCP.ProtocolTest do
     test "rejects a non-object" do
       assert {:error, :invalid_request} = Protocol.decode("[1,2]")
     end
+
+    test "accepts a missing jsonrpc key and adds the version" do
+      assert {:ok, %{"jsonrpc" => "2.0", "id" => 1, "method" => "ping"}} =
+               Protocol.decode(~s({"id":1,"method":"ping"}))
+    end
+
+    test "rejects a present-but-wrong jsonrpc version" do
+      assert {:error, :invalid_request} =
+               Protocol.decode(~s({"jsonrpc":"1.0","id":1,"method":"ping"}))
+    end
+
+    test "rejects a null jsonrpc version" do
+      assert {:error, :invalid_request} =
+               Protocol.decode(~s({"jsonrpc":null,"id":1,"method":"ping"}))
+    end
   end
 
-  describe "response/3 and error/3" do
+  describe "response/2 and error/3" do
     test "builds a result response with the id" do
       assert %{"jsonrpc" => "2.0", "id" => 7, "result" => %{"ok" => true}} =
                Protocol.response(7, %{"ok" => true})

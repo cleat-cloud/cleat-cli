@@ -12,10 +12,18 @@ defmodule Cleat.MCP.Protocol do
   @doc "Decodes one line into a request/notification map."
   def decode(line) when is_binary(line) do
     case Jason.decode(line) do
-      {:ok, %{"jsonrpc" => @jsonrpc} = message} -> {:ok, message}
-      {:ok, %{} = message} -> {:ok, Map.put(message, "jsonrpc", @jsonrpc)}
-      {:ok, _} -> {:error, :invalid_request}
-      {:error, _} -> {:error, :parse_error}
+      {:ok, %{} = message} ->
+        case Map.fetch(message, "jsonrpc") do
+          :error -> {:ok, Map.put(message, "jsonrpc", @jsonrpc)}
+          {:ok, @jsonrpc} -> {:ok, message}
+          {:ok, _other} -> {:error, :invalid_request}
+        end
+
+      {:ok, _other} ->
+        {:error, :invalid_request}
+
+      {:error, _} ->
+        {:error, :parse_error}
     end
   end
 
