@@ -5,6 +5,25 @@ defmodule Cleat.CommandsTest do
 
   alias Cleat.Commands
 
+  # Isolate from the developer's real ~/.config/cleat/config.json.
+  setup do
+    path = Path.join(System.tmp_dir!(), "cleat_cfg_#{System.unique_integer([:positive])}.json")
+    previous = System.get_env("CLEAT_CONFIG")
+    System.put_env("CLEAT_CONFIG", path)
+
+    on_exit(fn ->
+      if previous do
+        System.put_env("CLEAT_CONFIG", previous)
+      else
+        System.delete_env("CLEAT_CONFIG")
+      end
+
+      File.rm(path)
+    end)
+
+    :ok
+  end
+
   test "prefers --host when given" do
     assert {:ok, "app.example.com"} =
              Commands.host(%{host: "App.Example.com", subdomain: "other"})
