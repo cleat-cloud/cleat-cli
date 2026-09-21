@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Apps do
 
   alias Cleat.{Client, Commands, Output, Runtime}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] [--port N] [--repo owner/repo] [--runtime R] | cleat apps delete APP --yes | cleat apps logs APP [--follow]"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] [--port N] [--repo owner/repo] [--runtime R] | cleat apps delete APP --yes | cleat apps logs APP [--tail N] [--since S] [--grep T] [--follow]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)

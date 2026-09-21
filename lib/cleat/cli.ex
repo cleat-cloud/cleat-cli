@@ -189,7 +189,7 @@ defmodule Cleat.CLI do
       apps logs APP [--tail N] [--since S] [--grep T] [--follow]
                                             Runtime logs (systemd unit)
       servers logs ID [--unit U] [--tail N] [--since S] [--grep T] [--follow]
-                                            Server logs for a unit
+                                            Host journal (all units, or one with --unit)
 
     Environment
       env list APP [--reveal]               List env vars (secrets masked)

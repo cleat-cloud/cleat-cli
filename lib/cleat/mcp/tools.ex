@@ -240,7 +240,7 @@ defmodule Cleat.MCP.Tools do
       },
       %{
         "name" => "server_logs",
-        "description" => "Runtime (systemd) logs for a server",
+        "description" => "Host system journal for a server (all units, or one with unit)",
         "inputSchema" => %{
           "type" => "object",
           "properties" => %{

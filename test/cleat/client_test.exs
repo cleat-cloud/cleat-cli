@@ -107,4 +107,21 @@ defmodule Cleat.ClientTest do
   test "trailing slash in the panel URL is trimmed" do
     assert %Client{panel_url: "https://panel.test"} = Client.new("https://panel.test/")
   end
+
+  test "surfaces the panel's message on an error response" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      conn
+      |> Plug.Conn.put_status(422)
+      |> Req.Test.json(%{
+        "error" => "invalid_request",
+        "message" => "invalid since (use 30m, 2h, 1d)"
+      })
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:error, message} = Client.server_logs(client, 5, %{since: "nope"})
+    assert message =~ "Invalid request"
+    assert message =~ "invalid since (use 30m, 2h, 1d)"
+  end
 end
