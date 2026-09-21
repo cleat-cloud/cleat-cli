@@ -74,6 +74,26 @@ panel and is stored as a hash server-side.
 
 Run `cleat help` for the full option list.
 
+### Agent integration (MCP)
+
+`cleat` can run as a Model Context Protocol server on stdio, so coding agents
+(Claude Code, Codex, Grok) can deploy and inspect apps as native tools instead
+of shelling out:
+
+```bash
+claude mcp add cleat -- cleat mcp
+codex  mcp add cleat -- cleat mcp
+grok   mcp add cleat -- cleat mcp
+```
+
+Tools: `whoami`, `servers_list`, `apps_list`, `apps_show`, `apps_create`,
+`apps_update`, `apps_logs`, `env_list`, `env_set`, `env_unset`, `deploy`,
+`deploy_status`, `deploy_logs`, `cancel_deploy`, `drop`, `init_project`.
+
+`deploy` queues and returns a `deployment_id`; follow it with `deploy_status`
+and `deploy_logs`. Credentials come from `cleat login` (or `CLEAT_PANEL_URL` /
+`CLEAT_TOKEN`).
+
 ### Project manifest
 
 `cleat init` writes `.cleat_deploy/deploy.json`, the same manifest the panel
