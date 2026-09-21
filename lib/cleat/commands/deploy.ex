@@ -1,7 +1,7 @@
 defmodule Cleat.Commands.Deploy do
   @moduledoc false
 
-  alias Cleat.{Client, Commands, Output, Poller, Runtime}
+  alias Cleat.{Client, Commands, Output, Poller, Runtime, Static}
 
   def run(app, opts) do
     with {:ok, client} <- Commands.client(opts),
@@ -52,16 +52,30 @@ defmodule Cleat.Commands.Deploy do
         {:error, "#{repo} is not registered. Pass --server ID (and a host)."}
 
       true ->
-        case Commands.host(opts) do
-          {:ok, host} ->
-            register(client, repo, host, opts)
-
-          {:error, :missing_host} ->
-            {:error, "#{repo} is not registered. Pass --host DOMAIN or --subdomain NAME."}
-
-          {:error, message} ->
-            {:error, message}
+        case repo_host(repo, opts) do
+          {:ok, host} -> register(client, repo, host, opts)
+          {:error, message} -> {:error, message}
         end
+    end
+  end
+
+  # Static-only repos default to <slug>.<sites_base_domain> when the local
+  # checkout is a plain static site and no host was given.
+  defp repo_host(repo, opts) do
+    case Commands.host(opts) do
+      {:ok, host} ->
+        {:ok, host}
+
+      {:error, :missing_host} ->
+        if Static.detect?(File.cwd!()) do
+          slug = opts[:slug] || Cleat.Slug.from_name(Path.basename(repo))
+          Commands.static_host(slug, opts)
+        else
+          {:error, "#{repo} is not registered. Pass --host DOMAIN or --subdomain NAME."}
+        end
+
+      {:error, message} ->
+        {:error, message}
     end
   end
 
