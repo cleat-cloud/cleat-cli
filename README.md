@@ -232,7 +232,7 @@ static site — no repository needed. It works exactly like Netlify Drop:
 # against an existing static app
 cleat drop ./dist --app landing --watch
 
-# create the static app on the fly (server + host required)
+# create the static app on the fly (server required; host optional for plain static)
 cleat drop ./site --server 3 --host landing.example.com --watch
 
 # a single file: uploaded as index.html (or its own name when not HTML)
