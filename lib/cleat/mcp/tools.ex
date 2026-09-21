@@ -364,7 +364,7 @@ defmodule Cleat.MCP.Tools do
           "required" => ["path", "app"]
         },
         "handler" => fn args ->
-          with {:ok, tarball} <- Cleat.MCP.Tools.Pack.pack(args["path"]) do
+          with {:ok, tarball} <- Cleat.Pack.pack(args["path"]) do
             try do
               with_client(args, fn client ->
                 with {:ok, body} <- Client.create_drop(client, args["app"], tarball, args["ref"]),

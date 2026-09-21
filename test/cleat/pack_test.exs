@@ -1,7 +1,7 @@
-defmodule Cleat.MCP.Tools.PackTest do
+defmodule Cleat.PackTest do
   use ExUnit.Case, async: true
 
-  alias Cleat.MCP.Tools.Pack
+  alias Cleat.Pack
 
   test "packs a directory, excluding node_modules and .git" do
     dir = Path.join(System.tmp_dir!(), "cleat-pack-#{System.unique_integer([:positive])}")
@@ -34,5 +34,32 @@ defmodule Cleat.MCP.Tools.PackTest do
   test "rejects a missing path" do
     assert {:error, message} = Pack.pack("/nope/does-not-exist")
     assert message =~ "not a file or directory"
+  end
+
+  test "removes the partial tarball when tar fails" do
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-pack-fail-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    secret = Path.join(dir, "secret.txt")
+    File.write!(secret, "x")
+    File.chmod!(secret, 0o000)
+
+    on_exit(fn ->
+      File.chmod(secret, 0o600)
+      File.rm_rf(dir)
+    end)
+
+    before = Path.wildcard(Path.join(System.tmp_dir!(), "cleat_pack_*.tar.gz"))
+
+    case Pack.pack(dir) do
+      {:error, _} ->
+        after_paths = Path.wildcard(Path.join(System.tmp_dir!(), "cleat_pack_*.tar.gz"))
+        assert after_paths == before
+
+      {:ok, _} ->
+        # running as root (e.g. some CI) — tar can read the file; skip the assertion
+        :ok
+    end
   end
 end

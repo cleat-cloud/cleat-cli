@@ -1,9 +1,10 @@
-defmodule Cleat.MCP.Tools.Pack do
+defmodule Cleat.Pack do
   @moduledoc """
-  Packs a local folder or file into a tarball for the `drop` tool.
+  Packs a local folder or file into a `.tar.gz` for `cleat drop` and the MCP
+  `drop` tool.
 
-  Mirrors `Cleat.Commands.Drop.pack/1` (private) but returns a path the caller
-  owns and never writes to stdout.
+  Returns a path the caller owns. The function never writes to stdout so it is
+  safe to call from the MCP server.
   """
 
   @excludes ~w(.git node_modules .DS_Store)
@@ -28,8 +29,12 @@ defmodule Cleat.MCP.Tools.Pack do
         ["-C", dir, "."]
 
     case System.cmd("tar", args, stderr_to_stdout: true) do
-      {_out, 0} -> {:ok, tarball}
-      {out, _} -> {:error, "tar failed: #{String.trim(out)}"}
+      {_out, 0} ->
+        {:ok, tarball}
+
+      {out, _} ->
+        File.rm(tarball)
+        {:error, "tar failed: #{String.trim(out)}"}
     end
   end
 
