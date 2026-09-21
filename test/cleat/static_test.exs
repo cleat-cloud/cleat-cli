@@ -52,15 +52,40 @@ defmodule Cleat.StaticTest do
     refute Static.detect?(dir)
   end
 
+  test "detects an uppercase-extension html file", %{dir: dir} do
+    file = Path.join(dir, "UPPER.HTML")
+    File.write!(file, "<html></html>")
+
+    assert Static.detect?(file)
+  end
+
+  test "detects an .htm file", %{dir: dir} do
+    file = Path.join(dir, "page.htm")
+    File.write!(file, "<html></html>")
+
+    assert Static.detect?(file)
+  end
+
+  test "rejects a non-html file", %{dir: dir} do
+    file = Path.join(dir, "notes.txt")
+    File.write!(file, "not html")
+
+    refute Static.detect?(file)
+  end
+
   test "site_slug uses the folder name" do
-    assert Static.site_slug("/tmp/Minha Loja/") == "minha-loja"
+    assert Static.site_slug(Path.join(System.tmp_dir!(), "Minha Loja/")) == "minha-loja"
   end
 
   test "site_slug uses the file rootname for a single html file" do
-    assert Static.site_slug("/tmp/almanaque.html") == "almanaque"
+    assert Static.site_slug(Path.join(System.tmp_dir!(), "almanaque.html")) == "almanaque"
   end
 
   test "site_slug trims to a safe label" do
-    assert Static.site_slug("/tmp/__weird--name__/") == "weird-name"
+    assert Static.site_slug(Path.join(System.tmp_dir!(), "__weird--name__/")) == "weird-name"
+  end
+
+  test "site_slug returns nil for a symbol-only folder name" do
+    assert Static.site_slug(Path.join(System.tmp_dir!(), "---")) == nil
   end
 end
