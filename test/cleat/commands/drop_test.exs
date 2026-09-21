@@ -42,6 +42,9 @@ defmodule Cleat.Commands.DropTest do
 
     Req.Test.stub(__MODULE__, fn conn ->
       case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
         {"POST", "/api/v1/apps"} ->
           body = Jason.decode!(Req.Test.raw_body(conn))
           assert body["runtime"] == "static"
@@ -72,6 +75,9 @@ defmodule Cleat.Commands.DropTest do
 
     Req.Test.stub(__MODULE__, fn conn ->
       case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
         {"POST", "/api/v1/apps"} ->
           body = Jason.decode!(Req.Test.raw_body(conn))
           assert body["host"] == "exemplo.sites.example.com"
@@ -112,6 +118,9 @@ defmodule Cleat.Commands.DropTest do
 
     Req.Test.stub(__MODULE__, fn conn ->
       case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
         {"POST", "/api/v1/apps"} ->
           body = Jason.decode!(Req.Test.raw_body(conn))
           assert body["runtime"] == "static"
@@ -159,6 +168,150 @@ defmodule Cleat.Commands.DropTest do
 
   test "requires a target when --app is absent", %{dir: dir} do
     assert {:error, message} = Drop.run([dir], @conn)
+    assert message =~ "usage"
+  end
+
+  test "derives a sites host for a plain html directory" do
+    dir = Path.join(System.tmp_dir!(), "cleat-drop-static-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["host"] == body["slug"] <> ".sites.example.com"
+          assert body["runtime"] == "static"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 90, "slug" => body["slug"]}})
+
+        {"POST", path} ->
+          assert String.ends_with?(path, "/drops")
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 91, "status" => "queued"}})
+      end
+    end)
+
+    assert :ok =
+             Drop.run(
+               [dir],
+               %{
+                 panel: "https://panel.test",
+                 token: "tok",
+                 server: "5",
+                 sites_base_domain: "sites.example.com"
+               }
+             )
+  end
+
+  test "reuses an existing static app by slug" do
+    dir = Path.join(System.tmp_dir!(), "cleat-drop-reuse-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Path.basename(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => slug, "runtime" => "static", "host" => "#{slug}.sites.example.com"}
+            ]
+          })
+
+        {"POST", path} ->
+          assert String.ends_with?(path, "/drops")
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 92, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert :ok =
+             Drop.run(
+               [dir],
+               %{
+                 panel: "https://panel.test",
+                 token: "tok",
+                 server: "5",
+                 sites_base_domain: "sites.example.com"
+               }
+             )
+  end
+
+  test "errors when the slug exists with another runtime" do
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-drop-conflict-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Path.basename(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => slug, "runtime" => "phoenix", "host" => "#{slug}.apps.example.com"}
+            ]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Drop.run(
+               [dir],
+               %{
+                 panel: "https://panel.test",
+                 token: "tok",
+                 server: "5",
+                 sites_base_domain: "sites.example.com"
+               }
+             )
+
+    assert message =~ "already exists"
+  end
+
+  test "still requires a host for a non-static target" do
+    dir = Path.join(System.tmp_dir!(), "cleat-drop-build-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "package.json"), ~s({"name":"x"}))
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      Req.Test.json(conn, %{"data" => []})
+    end)
+
+    assert {:error, message} =
+             Drop.run(
+               [dir],
+               %{
+                 panel: "https://panel.test",
+                 token: "tok",
+                 server: "5",
+                 sites_base_domain: "sites.example.com"
+               }
+             )
+
     assert message =~ "usage"
   end
 end

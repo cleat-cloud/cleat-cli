@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Drop do
   Git-less deploy: package a local folder and publish it as a static site.
   """
 
-  alias Cleat.{Client, Commands, Output}
+  alias Cleat.{Client, Commands, Output, Static}
   alias Cleat.Commands.Deploy
 
   @usage "usage: cleat drop [DIR|FILE] --app APP   (or --server ID --host DOMAIN [--slug SLUG])"
@@ -58,7 +58,7 @@ defmodule Cleat.Commands.Drop do
     with {:ok, tarball} <- Cleat.Pack.pack(dir) do
       try do
         with {:ok, client} <- Commands.client(opts),
-             {:ok, app} <- resolve_app(client, opts, default_slug),
+             {:ok, app} <- resolve_app(client, opts, default_slug, dir),
              {:ok, body} <- Client.create_drop(client, app, tarball, opts[:ref]) do
           deployment = Commands.data(body)
 
@@ -76,16 +76,22 @@ defmodule Cleat.Commands.Drop do
     end
   end
 
-  defp resolve_app(client, opts, default_slug) do
+  defp resolve_app(client, opts, default_slug, dir) do
     case opts[:app] do
-      app when is_binary(app) and app != "" -> {:ok, app}
-      _ -> register_app(client, opts, default_slug)
+      app when is_binary(app) and app != "" ->
+        {:ok, app}
+
+      _ ->
+        slug = opts[:slug] || default_slug
+
+        case register_or_reuse_app(client, opts, slug, dir) do
+          {:error, :exists} -> {:ok, slug}
+          other -> other
+        end
     end
   end
 
-  defp register_app(client, opts, default_slug) do
-    slug = opts[:slug] || default_slug
-
+  defp register_or_reuse_app(client, opts, slug, dir) do
     cond do
       is_nil(opts[:server]) ->
         {:error, @usage}
@@ -94,11 +100,45 @@ defmodule Cleat.Commands.Drop do
         {:error, "could not derive a slug; pass --slug"}
 
       true ->
-        case Commands.host(opts) do
-          {:ok, host} -> create_app(client, slug, host, opts)
-          {:error, :missing_host} -> {:error, @usage}
-          {:error, message} -> {:error, message}
+        with {:ok, host} <- drop_host(slug, opts, dir),
+             :ok <- check_existing(client, slug),
+             {:ok, app_slug} <- create_app(client, slug, host, opts) do
+          {:ok, app_slug}
         end
+    end
+  end
+
+  # Static targets default to <slug>.<sites_base_domain> when no host is given.
+  defp drop_host(slug, opts, dir) do
+    case Commands.host(opts) do
+      {:ok, host} ->
+        {:ok, host}
+
+      {:error, :missing_host} ->
+        if Static.detect?(dir), do: Commands.static_host(slug, opts), else: {:error, @usage}
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  defp check_existing(client, slug) do
+    case Client.list_apps(client) do
+      {:ok, body} ->
+        case Enum.find(Commands.data(body), &(&1["slug"] == slug)) do
+          nil ->
+            :ok
+
+          %{"runtime" => "static"} ->
+            {:error, :exists}
+
+          %{"runtime" => runtime} ->
+            {:error,
+             "app #{slug} already exists with runtime #{runtime}; pass --app or a different --slug"}
+        end
+
+      {:error, message} ->
+        {:error, message}
     end
   end
 
