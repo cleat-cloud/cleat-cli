@@ -78,30 +78,90 @@ defmodule Cleat.MCP.Tools do
 
   defp data_text(body), do: json(Commands.data(body))
 
-  defp resolve_drop_app(_client, %{"app" => app}) when is_binary(app) and app != "" do
-    {:ok, app}
+  defp drop_plan(%{"app" => app}) when is_binary(app) and app != "" do
+    {:ok, {:app, app}}
   end
 
-  defp resolve_drop_app(client, args) do
-    if present?(args, "server") and present?(args, "host") do
-      register_static_app(client, args)
-    else
-      {:error, "drop requires app, or server and host to register one"}
+  defp drop_plan(args) do
+    slug = args["slug"] || Cleat.Static.site_slug(args["path"])
+
+    cond do
+      not present?(args, "server") ->
+        {:error, "drop requires app, or server (and a host or static path) to register one"}
+
+      is_nil(slug) ->
+        {:error, "could not derive a slug; pass slug"}
+
+      true ->
+        with {:ok, host} <- drop_host(args, slug) do
+          {:ok, {:register, slug, host, args["server"]}}
+        end
     end
   end
 
-  defp register_static_app(client, args) do
-    slug = args["slug"] || Cleat.Slug.from_name(Path.basename(args["path"]))
+  # Deriving a host only makes sense for a static path: an explicit host always
+  # wins, otherwise a static target gets `<slug>.<sites_base_domain>`.
+  defp drop_host(args, slug) do
+    cond do
+      present?(args, "host") ->
+        {:ok, args["host"]}
 
-    attrs =
-      %{
-        "name" => slug,
-        "slug" => slug,
-        "host" => args["host"],
-        "server_id" => args["server"],
-        "runtime" => "static"
-      }
-      |> Map.reject(fn {_k, v} -> is_nil(v) or v == "" end)
+      Cleat.Static.detect?(args["path"]) ->
+        Cleat.Commands.static_host(slug, sites_opts(args))
+
+      true ->
+        {:error, "drop requires a host for a non-static path; pass host or use a static path"}
+    end
+  end
+
+  defp sites_opts(args) do
+    if present?(args, "sites_base_domain") do
+      %{sites_base_domain: args["sites_base_domain"]}
+    else
+      %{}
+    end
+  end
+
+  defp resolve_drop_app(_client, {:app, app}), do: {:ok, app}
+
+  defp resolve_drop_app(client, {:register, slug, host, server}) do
+    case check_existing(client, slug) do
+      {:error, :exists} -> {:ok, slug}
+      :ok -> register_static_app(client, slug, host, server)
+      {:error, message} -> {:error, message}
+    end
+  end
+
+  defp check_existing(client, slug) do
+    case Client.list_apps(client) do
+      {:ok, body} ->
+        case Enum.find(Commands.data(body), &(&1["slug"] == slug)) do
+          nil ->
+            :ok
+
+          %{"runtime" => "static"} ->
+            {:error, :exists}
+
+          %{"runtime" => runtime} ->
+            {:error, "app #{slug} already exists with runtime #{runtime}"}
+
+          _other ->
+            :ok
+        end
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  defp register_static_app(client, slug, host, server) do
+    attrs = %{
+      "name" => slug,
+      "slug" => slug,
+      "host" => host,
+      "server_id" => server,
+      "runtime" => "static"
+    }
 
     with {:ok, body} <- Client.create_app(client, attrs) do
       {:ok, Commands.data(body)["slug"]}
@@ -398,6 +458,10 @@ defmodule Cleat.MCP.Tools do
               "description" => "Server id to register a static app on"
             },
             "host" => %{"type" => "string", "description" => "Host for the registered static app"},
+            "sites_base_domain" => %{
+              "type" => "string",
+              "description" => "Base domain for a derived static host"
+            },
             "slug" => %{"type" => "string", "description" => "Slug for the registered static app"},
             "ref" => %{"type" => "string"},
             "panel" => @panel,
@@ -408,11 +472,13 @@ defmodule Cleat.MCP.Tools do
         "handler" => fn args ->
           with {:ok, tarball} <- Cleat.Pack.pack(args["path"]) do
             try do
-              with_client(args, fn client ->
-                with {:ok, app} <- resolve_drop_app(client, args),
-                     {:ok, body} <- Client.create_drop(client, app, tarball, args["ref"]),
-                     do: {:ok, data_text(body)}
-              end)
+              with {:ok, plan} <- drop_plan(args) do
+                with_client(args, fn client ->
+                  with {:ok, app} <- resolve_drop_app(client, plan),
+                       {:ok, body} <- Client.create_drop(client, app, tarball, args["ref"]),
+                       do: {:ok, data_text(body)}
+                end)
+              end
             after
               File.rm(tarball)
             end

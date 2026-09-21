@@ -5,9 +5,23 @@ defmodule Cleat.MCP.ToolsTest do
 
   alias Cleat.MCP.Tools
 
+  @isolated_env ~w(CLEAT_CONFIG CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN)
+
   setup do
     Application.put_env(:cleat_cli, :req_plug, {Req.Test, __MODULE__})
     on_exit(fn -> Application.delete_env(:cleat_cli, :req_plug) end)
+
+    path = Path.join(System.tmp_dir!(), "cleat_cfg_#{System.unique_integer([:positive])}.json")
+    previous = Map.new(@isolated_env, &{&1, System.get_env(&1)})
+
+    System.put_env("CLEAT_CONFIG", path)
+    Enum.each(~w(CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN), &System.delete_env/1)
+
+    on_exit(fn ->
+      Enum.each(previous, fn {key, value} -> restore_env(key, value) end)
+      File.rm(path)
+    end)
+
     :ok
   end
 
@@ -265,6 +279,9 @@ defmodule Cleat.MCP.ToolsTest do
 
     Req.Test.stub(__MODULE__, fn conn ->
       case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
         {"POST", "/api/v1/apps"} ->
           body = Jason.decode!(Req.Test.raw_body(conn))
           assert body["runtime"] == "static"
@@ -305,7 +322,97 @@ defmodule Cleat.MCP.ToolsTest do
                "token" => "tok"
              })
 
-    assert message =~ "drop requires app, or server and host"
+    assert message =~ "drop requires app, or server"
+  end
+
+  test "drop derives a sites host for a static path without host" do
+    dir = Path.join(System.tmp_dir!(), "mcp-drop-static-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["host"] == body["slug"] <> ".sites.example.com"
+          assert body["runtime"] == "static"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 80, "slug" => body["slug"]}})
+
+        {"POST", "/api/v1/apps/" <> _} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 81, "status" => "queued"}})
+      end
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "sites_base_domain" => "sites.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "drop reuses an existing static app by slug" do
+    dir = Path.join(System.tmp_dir!(), "mcp-drop-reuse-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{
+                "slug" => slug,
+                "runtime" => "static",
+                "host" => "#{slug}.sites.example.com"
+              }
+            ]
+          })
+
+        {"POST", "/api/v1/apps/" <> _} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 82, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "sites_base_domain" => "sites.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "drop errors when a non-static path has no host" do
+    dir = Path.join(System.tmp_dir!(), "mcp-drop-build-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "package.json"), ~s({"name":"x"}))
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    Req.Test.stub(__MODULE__, fn conn -> Req.Test.json(conn, %{"data" => []}) end)
+
+    assert {:error, message} = Tools.call("drop", %{"path" => dir, "server" => "5"})
+    assert message =~ "host"
   end
 
   test "call/2 rejects token '-' (stdin) over MCP" do
@@ -329,4 +436,7 @@ defmodule Cleat.MCP.ToolsTest do
     |> String.replace(~r/[^a-z0-9]+/, "-")
     |> String.trim("-")
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 end
