@@ -5,6 +5,8 @@ defmodule Cleat.Commands.DropTest do
 
   @conn %{panel: "https://panel.test", token: "tok"}
 
+  @isolated_env ~w(CLEAT_CONFIG CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN)
+
   setup do
     dir = Path.join(System.tmp_dir!(), "cleat_drop_cmd_#{System.unique_integer([:positive])}")
     File.mkdir_p!(dir)
@@ -15,6 +17,18 @@ defmodule Cleat.Commands.DropTest do
 
     Application.put_env(:cleat_cli, :req_plug, {Req.Test, __MODULE__})
     on_exit(fn -> Application.delete_env(:cleat_cli, :req_plug) end)
+
+    # Isolate from the developer's real config file and domain env vars.
+    path = Path.join(System.tmp_dir!(), "cleat_cfg_#{System.unique_integer([:positive])}.json")
+    previous = Map.new(@isolated_env, &{&1, System.get_env(&1)})
+
+    System.put_env("CLEAT_CONFIG", path)
+    Enum.each(~w(CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN), &System.delete_env/1)
+
+    on_exit(fn ->
+      Enum.each(previous, fn {key, value} -> restore_env(key, value) end)
+      File.rm(path)
+    end)
 
     {:ok, dir: dir}
   end
@@ -184,7 +198,9 @@ defmodule Cleat.Commands.DropTest do
 
         {"POST", "/api/v1/apps"} ->
           body = Jason.decode!(Req.Test.raw_body(conn))
-          assert body["host"] == body["slug"] <> ".sites.example.com"
+          expected_slug = Cleat.Slug.from_name(Path.basename(dir))
+          assert body["slug"] == expected_slug
+          assert body["host"] == expected_slug <> ".sites.example.com"
           assert body["runtime"] == "static"
 
           conn
@@ -253,6 +269,79 @@ defmodule Cleat.Commands.DropTest do
              )
   end
 
+  test "reuses an existing static app with no domain configured at all" do
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-drop-nodomain-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Path.basename(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => slug, "runtime" => "static", "host" => "#{slug}.sites.test"}]
+          })
+
+        {"POST", path} ->
+          assert String.ends_with?(path, "/drops")
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 93, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert :ok =
+             Drop.run(
+               [dir],
+               %{panel: "https://panel.test", token: "tok", server: "5"}
+             )
+  end
+
+  test "errors when --host was requested but the existing static app is on another host" do
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-drop-host-reuse-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Path.basename(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => slug, "runtime" => "static", "host" => "old.example.com"}]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Drop.run(
+               [dir],
+               %{
+                 panel: "https://panel.test",
+                 token: "tok",
+                 server: "5",
+                 host: "new.example.com"
+               }
+             )
+
+    assert message =~ "already exists"
+    assert message =~ "old.example.com"
+  end
+
   test "errors when the slug exists with another runtime" do
     dir =
       Path.join(System.tmp_dir!(), "cleat-drop-conflict-#{System.unique_integer([:positive])}")
@@ -314,4 +403,7 @@ defmodule Cleat.Commands.DropTest do
 
     assert message =~ "usage"
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 end

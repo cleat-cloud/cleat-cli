@@ -100,8 +100,8 @@ defmodule Cleat.Commands.Drop do
         {:error, "could not derive a slug; pass --slug"}
 
       true ->
-        with {:ok, host} <- drop_host(slug, opts, dir),
-             :ok <- check_existing(client, slug),
+        with :ok <- check_existing(client, slug, opts),
+             {:ok, host} <- drop_host(slug, opts, dir),
              {:ok, app_slug} <- create_app(client, slug, host, opts) do
           {:ok, app_slug}
         end
@@ -122,24 +122,56 @@ defmodule Cleat.Commands.Drop do
     end
   end
 
-  defp check_existing(client, slug) do
+  defp check_existing(client, slug, opts) do
     case Client.list_apps(client) do
       {:ok, body} ->
         case Enum.find(Commands.data(body), &(&1["slug"] == slug)) do
           nil ->
             :ok
 
-          %{"runtime" => "static"} ->
-            {:error, :exists}
+          %{"runtime" => "static"} = app ->
+            reuse_static(app, slug, opts)
 
           %{"runtime" => runtime} ->
             {:error,
-             "app #{slug} already exists with runtime #{runtime}; pass --app or a different --slug"}
+             "app #{slug} already exists with runtime #{runtime}; use a different --slug " <>
+               "(or pass --app to target another app)"}
+
+          _other ->
+            :ok
         end
 
       {:error, message} ->
         {:error, message}
     end
+  end
+
+  # An existing static app can be reused when the user did not pin a host, or
+  # pinned the same host it already has. A conflicting explicit host is an error
+  # so the request is never silently discarded.
+  defp reuse_static(app, slug, opts) do
+    case Commands.host(opts) do
+      {:ok, requested} ->
+        if normalize_host(requested) == normalize_host(app["host"]) do
+          {:error, :exists}
+        else
+          {:error,
+           "app #{slug} already exists as static on #{app["host"]}; drop without " <>
+             "--host/--subdomain to reuse it, or use a different --slug"}
+        end
+
+      {:error, :missing_host} ->
+        {:error, :exists}
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  defp normalize_host(nil), do: nil
+
+  defp normalize_host(host) when is_binary(host) do
+    host |> String.downcase() |> String.trim_trailing(".")
   end
 
   defp create_app(client, slug, host, opts) do
