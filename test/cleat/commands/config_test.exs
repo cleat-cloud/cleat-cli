@@ -45,4 +45,15 @@ defmodule Cleat.Commands.ConfigTest do
     assert output =~ "cleat_ab…"
     refute output =~ "cleat_abcdefghijklmnop"
   end
+
+  test "sets and lists sites_base_domain" do
+    capture_io(fn ->
+      assert :ok = Config.run(["set", "sites_base_domain", "Sites.Example.com."], %{})
+    end)
+
+    assert Cleat.Config.sites_base_domain() == "sites.example.com"
+
+    output = capture_io(fn -> Config.run(["list"], %{}) end)
+    assert output =~ "sites.example.com"
+  end
 end

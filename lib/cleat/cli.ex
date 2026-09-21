@@ -45,6 +45,7 @@ defmodule Cleat.CLI do
     host: :string,
     subdomain: :string,
     base_domain: :string,
+    sites_base_domain: :string,
     ip: :string,
     region: :string,
     provider: :string,
