@@ -90,6 +90,28 @@ defmodule Cleat.CommandsTest do
     end)
   end
 
+  test "sites_base_domain falls back to base_domain" do
+    System.put_env("CLEAT_SITES_BASE_DOMAIN", "sites.example.com")
+    on_exit(fn -> System.delete_env("CLEAT_SITES_BASE_DOMAIN") end)
+
+    assert Commands.sites_base_domain(%{}) == "sites.example.com"
+  end
+
+  test "static_host builds <slug>.<sites_base_domain>" do
+    assert {:ok, "minha-loja.sites.example.com"} =
+             Commands.static_host("minha-loja", %{sites_base_domain: "sites.example.com"})
+  end
+
+  test "static_host errors without a configured sites base domain" do
+    {:error, message} = Commands.static_host("x", %{sites_base_domain: nil})
+    assert message =~ "sites_base_domain"
+  end
+
+  test "static_host slugifies the slug" do
+    assert {:ok, "minha-loja.sites.example.com"} =
+             Commands.static_host("Minha Loja", %{sites_base_domain: "sites.example.com"})
+  end
+
   defp tmp_file(prefix) do
     path = Path.join(System.tmp_dir!(), "#{prefix}-#{System.unique_integer([:positive])}")
     on_exit(fn -> File.rm(path) end)
