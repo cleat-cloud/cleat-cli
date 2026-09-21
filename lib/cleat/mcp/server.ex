@@ -13,7 +13,7 @@ defmodule Cleat.MCP.Server do
   @version Mix.Project.config()[:version] || "0.0.0"
 
   @doc "Dispatches one decoded request. Returns a response map or `:noreply`."
-  def handle(%{"method" => method} = request) do
+  def handle(%{"method" => method} = request) when is_binary(method) do
     id = Map.get(request, "id")
     params = Map.get(request, "params", %{})
 
@@ -27,6 +27,7 @@ defmodule Cleat.MCP.Server do
     end
   end
 
+  def handle(%{"id" => nil}), do: :noreply
   def handle(%{"id" => id}), do: Protocol.error(id, -32600, "invalid request")
   def handle(_), do: :noreply
 
@@ -39,20 +40,25 @@ defmodule Cleat.MCP.Server do
   end
 
   defp call_tool(id, %{"name" => name, "arguments" => args}) when is_map(args) do
+    run_tool(id, name, args)
+  end
+
+  defp call_tool(id, %{"name" => _name, "arguments" => _invalid}) do
+    Protocol.error(id, -32602, "invalid params")
+  end
+
+  defp call_tool(id, %{"name" => name}) do
+    run_tool(id, name, %{})
+  end
+
+  defp call_tool(id, _params), do: Protocol.error(id, -32602, "invalid params")
+
+  defp run_tool(id, name, args) do
     case Tools.call(name, args) do
       {:ok, text} -> Protocol.response(id, Protocol.tool_result(text))
       {:error, message} -> Protocol.response(id, Protocol.tool_result(message, error: true))
     end
   end
-
-  defp call_tool(id, %{"name" => name}) do
-    case Tools.call(name, %{}) do
-      {:ok, text} -> Protocol.response(id, Protocol.tool_result(text))
-      {:error, message} -> Protocol.response(id, Protocol.tool_result(message, error: true))
-    end
-  end
-
-  defp call_tool(id, _params), do: Protocol.error(id, -32602, "invalid params")
 
   @doc "Runs the stdio loop until stdin reaches EOF."
   def run(opts \\ []) do
@@ -67,12 +73,14 @@ defmodule Cleat.MCP.Server do
       :eof ->
         :ok
 
-      {:error, _} ->
+      {:error, reason} ->
+        IO.puts(:stderr, "cleat mcp: #{inspect(reason)}")
         :ok
 
       line ->
         line
         |> String.trim_trailing("\n")
+        |> String.trim_trailing("\r")
         |> respond(output)
 
         loop(input, output)
@@ -82,6 +90,15 @@ defmodule Cleat.MCP.Server do
   defp respond("", _output), do: :ok
 
   defp respond(line, output) do
+    try do
+      dispatch(line, output)
+    rescue
+      error ->
+        IO.puts(output, Protocol.encode(Protocol.error(nil, -32603, Exception.message(error))))
+    end
+  end
+
+  defp dispatch(line, output) do
     case Protocol.decode(line) do
       {:ok, request} ->
         case handle(request) do
