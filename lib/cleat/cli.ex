@@ -196,7 +196,8 @@ defmodule Cleat.CLI do
                                             Register if needed, then deploy
       drop [DIR|FILE] --app APP [--watch]   Publish a folder or file (no git)
       drop [DIR|FILE] --server ID \\
-        --host H [--slug S] [--watch]       Create the static app, then drop
+        [--host H] [--slug S] [--watch]     Register if needed, then drop
+                                            (plain static sites use <slug>.<sites_base_domain>)
       cancel APP                            Cancel the active deploy
       status APP                            List recent deployments for an app
       logs DEPLOYMENT_ID [--follow]         Print a deployment's build log
@@ -207,6 +208,7 @@ defmodule Cleat.CLI do
       --host HOST      Full app domain (e.g. landing.sites.example.com)
       --subdomain NAME Shortcut: NAME.<base_domain> (env CLEAT_BASE_DOMAIN)
       --base-domain D  Base domain for --subdomain
+      --sites-base-domain D  Base domain for static sites (env CLEAT_SITES_BASE_DOMAIN)
       --json           Machine-readable output      -h, --help       Show this help
       -v, --version    Show the CLI version
     """
