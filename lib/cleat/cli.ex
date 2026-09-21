@@ -142,7 +142,8 @@ defmodule Cleat.CLI do
     Enum.map_join(invalid, ", ", fn {switch, _value} -> switch end)
   end
 
-  defp usage do
+  @doc false
+  def usage do
     """
     cleat #{@version} — deploy and manage apps on a Cleat panel
 
