@@ -60,8 +60,8 @@ panel and is stored as a hash server-side.
 | `cleat apps show APP` | Show one app (by id or slug) |
 | `cleat apps create` | Create an app |
 | `cleat apps update APP` | Edit repo / branch / auto-deploy / host / port / runtime |
-| `cleat apps logs APP` | Print runtime logs (systemd unit) |
-| `cleat apps logs APP --follow` | Stream runtime logs |
+| `cleat apps logs APP` | App journal, with `--tail`, `--since`, `--grep`, `--follow` |
+| `cleat servers logs ID` | Host journal, with `--unit`, `--tail`, `--since`, `--grep`, `--follow` |
 | `cleat env list APP` | List env vars (secrets masked) |
 | `cleat env set APP K=V` | Upsert one or more env vars |
 | `cleat env unset APP KEY` | Delete an env var |
@@ -176,6 +176,20 @@ Ruby version resolution order: `ruby_version` → `.ruby-version` → the Gemfil
 config/puma.rb` → `bundle exec puma -b tcp://0.0.0.0:$PORT`.
 
 Commit the manifest so the panel picks it up on the next deploy.
+
+### Logs
+
+`apps logs` reads an app's systemd journal; `servers logs` reads the host
+journal (all units, or one with `--unit`):
+
+```bash
+cleat apps logs lumina --tail 500 --since 1h --grep error
+cleat servers logs 5 --unit caddy --since 30m
+```
+
+`--since` accepts `30m`, `2h`, `1d` or an ISO date (`2026-09-21`,
+`2026-09-21 14:30`). `--grep` is a case-sensitive substring filter. `--tail`
+defaults to 200 (max 5000). `--follow` keeps polling and prints new lines.
 
 ### Environment variables
 
