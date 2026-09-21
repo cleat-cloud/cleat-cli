@@ -4,7 +4,7 @@ defmodule Cleat.Commands.Config do
   alias Cleat.{Config, Output}
 
   @usage "usage: cleat config | cleat config get KEY | cleat config set KEY VALUE | cleat config unset KEY"
-  @writable ~w(base_domain panel_url)
+  @writable ~w(base_domain sites_base_domain panel_url)
 
   def run([], _opts), do: list()
   def run(["list"], _opts), do: list()
@@ -20,6 +20,7 @@ defmodule Cleat.Commands.Config do
       [
         ["panel_url", config["panel_url"] || "—"],
         ["base_domain", config["base_domain"] || "—"],
+        ["sites_base_domain", config["sites_base_domain"] || "—"],
         ["token", mask(config["token"])]
       ],
       ["KEY", "VALUE"]
@@ -51,11 +52,14 @@ defmodule Cleat.Commands.Config do
     :ok
   end
 
-  defp normalize("base_domain", value) do
-    value |> String.trim() |> String.downcase() |> String.trim_trailing(".")
-  end
+  defp normalize("base_domain", value), do: normalize_domain(value)
+  defp normalize("sites_base_domain", value), do: normalize_domain(value)
 
   defp normalize(_key, value), do: String.trim(value)
+
+  defp normalize_domain(value) do
+    value |> String.trim() |> String.downcase() |> String.trim_trailing(".")
+  end
 
   defp mask(nil), do: "—"
 

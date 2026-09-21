@@ -5,9 +5,25 @@ defmodule Cleat.Commands.DeployTest do
 
   alias Cleat.Commands.Deploy
 
+  @isolated_env ~w(CLEAT_CONFIG CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN)
+
+  # Isolate from the developer's real config file and domain env vars so a
+  # static host fallback cannot pick up unrelated values.
   setup do
     Application.put_env(:cleat_cli, :req_plug, {Req.Test, __MODULE__})
-    on_exit(fn -> Application.delete_env(:cleat_cli, :req_plug) end)
+
+    path = Path.join(System.tmp_dir!(), "cleat_cfg_#{System.unique_integer([:positive])}.json")
+    previous = Map.new(@isolated_env, &{&1, System.get_env(&1)})
+
+    System.put_env("CLEAT_CONFIG", path)
+    Enum.each(~w(CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN), &System.delete_env/1)
+
+    on_exit(fn ->
+      Application.delete_env(:cleat_cli, :req_plug)
+      Enum.each(previous, fn {key, value} -> restore_env(key, value) end)
+      File.rm(path)
+    end)
+
     :ok
   end
 
@@ -168,6 +184,233 @@ defmodule Cleat.Commands.DeployTest do
     File.cd!(original)
   end
 
+  test "rejects an unknown repo whose slug collides with an existing app" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => "minha-loja", "github_repo" => "someone/else"}]
+          })
+
+        other ->
+          flunk("unexpected request: #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5",
+               host: "x.example.com"
+             })
+
+    assert message =~ "already exists"
+  end
+
+  test "reuses an existing static app when an unknown repo slug collides" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => "minha-loja", "runtime" => "static", "github_repo" => nil}]
+          })
+
+        {"POST", "/api/v1/apps/minha-loja/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 50, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request: #{inspect(other)}")
+      end
+    end)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5",
+               host: "x.example.com"
+             })
+  end
+
+  test "rejects an unknown repo whose slug collides with a non-static app" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => "minha-loja", "runtime" => "phoenix", "github_repo" => "someone/else"}
+            ]
+          })
+
+        other ->
+          flunk("unexpected request: #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5",
+               host: "x.example.com"
+             })
+
+    assert message =~ "already exists"
+    assert message =~ "phoenix"
+  end
+
+  test "strips a .git suffix when deriving the slug" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["github_repo"] == "owner/my-repo.git"
+          assert body["slug"] == "my-repo"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 80, "slug" => "my-repo"}})
+
+        {"POST", "/api/v1/apps/my-repo/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 81, "status" => "queued"}})
+      end
+    end)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/my-repo.git",
+               server: "3",
+               host: "my-repo.example.com"
+             })
+  end
+
+  test "errors when a static repo has no host and no sites base domain" do
+    dir = tmp_static_project()
+    original = File.cwd!()
+    on_exit(fn -> File.cd!(original) end)
+    on_exit(fn -> File.rm_rf(dir) end)
+    File.cd!(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        other ->
+          flunk("unexpected request: #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5"
+             })
+
+    File.cd!(original)
+    assert message =~ "sites_base_domain"
+  end
+
+  test "an explicit --host wins over static detection" do
+    dir = tmp_static_project()
+    original = File.cwd!()
+    on_exit(fn -> File.cd!(original) end)
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          assert Jason.decode!(Req.Test.raw_body(conn))["host"] == "explicit.example.com"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 90, "slug" => "minha-loja"}})
+
+        {"POST", "/api/v1/apps/minha-loja/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 91, "status" => "queued"}})
+      end
+    end)
+
+    File.cd!(dir)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5",
+               host: "ExPlicit.Example.COM"
+             })
+
+    File.cd!(original)
+  end
+
+  test "derives a sites host for a static repo when no host is given" do
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-deploy-static-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    original = File.cwd!()
+
+    on_exit(fn ->
+      File.cd!(original)
+      File.rm_rf(dir)
+    end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["host"] == "minha-loja.sites.example.com"
+          assert body["runtime"] == "static"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 70, "slug" => "minha-loja"}})
+
+        {"POST", "/api/v1/apps/minha-loja/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 71, "status" => "queued"}})
+      end
+    end)
+
+    File.cd!(dir)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5",
+               sites_base_domain: "sites.example.com"
+             })
+  end
+
   defp tmp_project(package_json) do
     dir =
       Path.join(System.tmp_dir!(), "cleat-deploy-proj-#{System.unique_integer([:positive])}")
@@ -176,6 +419,18 @@ defmodule Cleat.Commands.DeployTest do
     File.write!(Path.join(dir, "package.json"), package_json)
     dir
   end
+
+  defp tmp_static_project do
+    dir =
+      Path.join(System.tmp_dir!(), "cleat-deploy-static-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    dir
+  end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 
   test "streams the build log while watching" do
     {:ok, counter} = Agent.start_link(fn -> 0 end)

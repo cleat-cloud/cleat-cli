@@ -232,12 +232,30 @@ static site — no repository needed. It works exactly like Netlify Drop:
 # against an existing static app
 cleat drop ./dist --app landing --watch
 
-# create the static app on the fly (server + host required)
+# create the static app on the fly (server required; host optional for plain static)
 cleat drop ./site --server 3 --host landing.example.com --watch
 
 # a single file: uploaded as index.html (or its own name when not HTML)
 cleat drop ./almanaque.html --server 3 --host almanaque.example.com --watch
 ```
+
+Plain static sites get a host automatically. When the target is a single
+`.html`/`.htm` file, or a directory with an `index.html` and no build manifest
+(`package.json`, `mix.exs`, `go.mod`), you can publish without `--host`:
+
+```bash
+cleat config set sites_base_domain sites.example.com   # once
+
+cleat drop ./minha-loja --server 3 --watch
+# → minha-loja.sites.example.com
+
+cleat deploy --repo owner/minha-loja --server 3        # same detection
+```
+
+Re-running a drop against the same slug updates the existing static app instead
+of creating a new one. Pass `--host`/`--subdomain` to override, or
+`--sites-base-domain` for a one-off. A non-static target without a host still
+asks for one.
 
 `.git`, `node_modules` and `.DS_Store` are excluded from the upload. The panel
 enforces a size limit (default 50 MB, `CLEAT_DROP_MAX_BYTES` to override) and
@@ -276,6 +294,16 @@ cleat deploy --repo owner/repo --server 3 --subdomain exemplo --runtime static -
 sets it via the environment. Use `--host` for a full domain. The panel issues a
 Let's Encrypt certificate per host automatically; it does not need to know the
 base domain.
+
+For static sites, set `sites_base_domain` to give plain static drops and deploys
+a base domain when they omit `--host`:
+
+```bash
+cleat config set sites_base_domain sites.example.com
+```
+
+Override it per command with `--sites-base-domain`, or via
+`CLEAT_SITES_BASE_DOMAIN`.
 
 ## Development
 

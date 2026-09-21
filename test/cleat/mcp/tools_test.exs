@@ -5,9 +5,23 @@ defmodule Cleat.MCP.ToolsTest do
 
   alias Cleat.MCP.Tools
 
+  @isolated_env ~w(CLEAT_CONFIG CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN)
+
   setup do
     Application.put_env(:cleat_cli, :req_plug, {Req.Test, __MODULE__})
     on_exit(fn -> Application.delete_env(:cleat_cli, :req_plug) end)
+
+    path = Path.join(System.tmp_dir!(), "cleat_cfg_#{System.unique_integer([:positive])}.json")
+    previous = Map.new(@isolated_env, &{&1, System.get_env(&1)})
+
+    System.put_env("CLEAT_CONFIG", path)
+    Enum.each(~w(CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN), &System.delete_env/1)
+
+    on_exit(fn ->
+      Enum.each(previous, fn {key, value} -> restore_env(key, value) end)
+      File.rm(path)
+    end)
+
     :ok
   end
 
@@ -265,11 +279,14 @@ defmodule Cleat.MCP.ToolsTest do
 
     Req.Test.stub(__MODULE__, fn conn ->
       case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
         {"POST", "/api/v1/apps"} ->
           body = Jason.decode!(Req.Test.raw_body(conn))
           assert body["runtime"] == "static"
           assert body["server_id"] == "3"
-          assert body["host"] == "landing.example.com"
+          assert body["host"] == "new.example.com"
           assert body["slug"] == slug
 
           conn
@@ -287,7 +304,7 @@ defmodule Cleat.MCP.ToolsTest do
              Tools.call("drop", %{
                "path" => dir,
                "server" => "3",
-               "host" => "landing.example.com",
+               "host" => "New.Example.COM",
                "panel" => "https://panel.test",
                "token" => "tok"
              })
@@ -305,7 +322,268 @@ defmodule Cleat.MCP.ToolsTest do
                "token" => "tok"
              })
 
-    assert message =~ "drop requires app, or server and host"
+    assert message =~ "drop requires app, or server"
+  end
+
+  test "drop derives a sites host for a static path without host" do
+    dir = Path.join(System.tmp_dir!(), "mcp-drop-static-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["host"] == body["slug"] <> ".sites.example.com"
+          assert body["runtime"] == "static"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 80, "slug" => body["slug"]}})
+
+        {"POST", "/api/v1/apps/" <> _} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 81, "status" => "queued"}})
+      end
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "sites_base_domain" => "sites.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "drop reuses an existing static app by slug" do
+    dir = Path.join(System.tmp_dir!(), "mcp-drop-reuse-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{
+                "slug" => slug,
+                "runtime" => "static",
+                "host" => "#{slug}.sites.example.com"
+              }
+            ]
+          })
+
+        {"POST", "/api/v1/apps/" <> _} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 82, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "sites_base_domain" => "sites.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "drop reuses an existing static app with no domain configured" do
+    dir =
+      Path.join(System.tmp_dir!(), "mcp-drop-nodomain-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => slug, "runtime" => "static", "host" => "#{slug}.sites.example.com"}
+            ]
+          })
+
+        {"POST", "/api/v1/apps"} ->
+          flunk("drop must reuse the existing app instead of registering one")
+
+        {"POST", "/api/v1/apps/" <> _} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 83, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:ok, text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["id"] == 83
+  end
+
+  test "drop errors when an explicit host differs from the existing static app host" do
+    dir =
+      Path.join(System.tmp_dir!(), "mcp-drop-hostclash-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => slug, "runtime" => "static", "host" => "existing.example.com"}
+            ]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "host" => "other.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "existing.example.com"
+    assert message =~ "already exists"
+  end
+
+  test "drop host clash falls back when the existing static app has no host" do
+    dir =
+      Path.join(System.tmp_dir!(), "mcp-drop-nohost-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => slug, "runtime" => "static", "host" => nil}]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "host" => "other.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "already exists"
+    assert message =~ "unset host"
+    refute message =~ "on ;"
+  end
+
+  test "drop errors when the slug exists with another runtime" do
+    dir = temp_drop_dir()
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => slug, "runtime" => "docker", "host" => "x.example.com"}]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "host" => "x.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "docker"
+  end
+
+  test "drop does not write to stdout" do
+    dir = temp_drop_dir()
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/apps/landing/drops"
+
+      conn
+      |> Plug.Conn.put_status(201)
+      |> Req.Test.json(%{"data" => %{"id" => 9, "status" => "queued"}})
+    end)
+
+    output =
+      capture_io(fn ->
+        assert {:ok, text} =
+                 Tools.call("drop", %{
+                   "path" => dir,
+                   "app" => "landing",
+                   "panel" => "https://panel.test",
+                   "token" => "tok"
+                 })
+
+        assert Jason.decode!(text)["id"] == 9
+      end)
+
+    assert output == ""
+  end
+
+  test "drop errors when a non-static path has no host" do
+    dir = Path.join(System.tmp_dir!(), "mcp-drop-build-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "package.json"), ~s({"name":"x"}))
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    Req.Test.stub(__MODULE__, fn conn -> Req.Test.json(conn, %{"data" => []}) end)
+
+    assert {:error, message} = Tools.call("drop", %{"path" => dir, "server" => "5"})
+    assert message =~ "host"
   end
 
   test "call/2 rejects token '-' (stdin) over MCP" do
@@ -329,4 +607,7 @@ defmodule Cleat.MCP.ToolsTest do
     |> String.replace(~r/[^a-z0-9]+/, "-")
     |> String.trim("-")
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 end

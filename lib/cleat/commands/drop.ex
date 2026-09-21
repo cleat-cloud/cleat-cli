@@ -3,10 +3,10 @@ defmodule Cleat.Commands.Drop do
   Git-less deploy: package a local folder and publish it as a static site.
   """
 
-  alias Cleat.{Client, Commands, Output}
+  alias Cleat.{Client, Commands, Output, Static}
   alias Cleat.Commands.Deploy
 
-  @usage "usage: cleat drop [DIR|FILE] --app APP   (or --server ID --host DOMAIN [--slug SLUG])"
+  @usage "usage: cleat drop [DIR|FILE] --app APP | --server ID [--host DOMAIN | static auto] [--slug SLUG]"
 
   def run(args, opts) do
     target = List.first(args) || "."
@@ -37,7 +37,7 @@ defmodule Cleat.Commands.Drop do
         Path.basename(file)
       end
 
-    slug = Path.basename(file) |> Path.rootname() |> slugify()
+    slug = Static.site_slug(file)
 
     try do
       with :ok <- File.cp(file, Path.join(staging, name)) do
@@ -51,14 +51,14 @@ defmodule Cleat.Commands.Drop do
   end
 
   defp drop_dir(label, dir, opts) do
-    drop_dir(label, dir, opts, slugify(Path.basename(dir)))
+    drop_dir(label, dir, opts, Static.site_slug(dir))
   end
 
   defp drop_dir(label, dir, opts, default_slug) do
     with {:ok, tarball} <- Cleat.Pack.pack(dir) do
       try do
         with {:ok, client} <- Commands.client(opts),
-             {:ok, app} <- resolve_app(client, opts, default_slug),
+             {:ok, app} <- resolve_app(client, opts, default_slug, dir),
              {:ok, body} <- Client.create_drop(client, app, tarball, opts[:ref]) do
           deployment = Commands.data(body)
 
@@ -76,16 +76,22 @@ defmodule Cleat.Commands.Drop do
     end
   end
 
-  defp resolve_app(client, opts, default_slug) do
+  defp resolve_app(client, opts, default_slug, dir) do
     case opts[:app] do
-      app when is_binary(app) and app != "" -> {:ok, app}
-      _ -> register_app(client, opts, default_slug)
+      app when is_binary(app) and app != "" ->
+        {:ok, app}
+
+      _ ->
+        slug = opts[:slug] || default_slug
+
+        case register_or_reuse_app(client, opts, slug, dir) do
+          {:error, :exists} -> {:ok, slug}
+          other -> other
+        end
     end
   end
 
-  defp register_app(client, opts, default_slug) do
-    slug = opts[:slug] || default_slug
-
+  defp register_or_reuse_app(client, opts, slug, dir) do
     cond do
       is_nil(opts[:server]) ->
         {:error, @usage}
@@ -94,12 +100,87 @@ defmodule Cleat.Commands.Drop do
         {:error, "could not derive a slug; pass --slug"}
 
       true ->
-        case Commands.host(opts) do
-          {:ok, host} -> create_app(client, slug, host, opts)
-          {:error, :missing_host} -> {:error, @usage}
-          {:error, message} -> {:error, message}
+        with :ok <- check_existing(client, slug, opts),
+             {:ok, host} <- drop_host(slug, opts, dir),
+             {:ok, app_slug} <- create_app(client, slug, host, opts) do
+          {:ok, app_slug}
         end
     end
+  end
+
+  # Static targets default to <slug>.<sites_base_domain> when no host is given.
+  defp drop_host(slug, opts, dir) do
+    case Commands.host(opts) do
+      {:ok, host} ->
+        {:ok, host}
+
+      {:error, :missing_host} ->
+        if Static.detect?(dir), do: Commands.static_host(slug, opts), else: {:error, @usage}
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  defp check_existing(client, slug, opts) do
+    case Client.list_apps(client) do
+      {:ok, body} ->
+        case Enum.find(Commands.data(body), &(&1["slug"] == slug)) do
+          nil ->
+            :ok
+
+          %{"runtime" => "static"} = app ->
+            reuse_static(app, slug, opts)
+
+          %{"runtime" => runtime} ->
+            {:error,
+             "app #{slug} already exists with runtime #{runtime}; use a different --slug " <>
+               "(or pass --app to target another app)"}
+
+          _other ->
+            :ok
+        end
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  # An existing static app can be reused when the user did not pin a host, or
+  # pinned the same host it already has. A conflicting explicit host is an error
+  # so the request is never silently discarded.
+  defp reuse_static(app, slug, opts) do
+    case Commands.host(opts) do
+      {:ok, requested} ->
+        if normalize_host(requested) == normalize_host(app["host"]) do
+          {:error, :exists}
+        else
+          {:error,
+           "app #{slug} already exists as static #{host_phrase(app["host"])}; drop without " <>
+             "--host/--subdomain to reuse it, or use a different --slug"}
+        end
+
+      {:error, :missing_host} ->
+        {:error, :exists}
+
+      {:error, message} ->
+        {:error, message}
+    end
+  end
+
+  defp host_phrase(nil), do: "on an unset host"
+
+  defp host_phrase(host) when is_binary(host) do
+    case String.trim(host) do
+      "" -> "on an unset host"
+      value -> "on #{value}"
+    end
+  end
+
+  defp normalize_host(nil), do: nil
+
+  defp normalize_host(host) when is_binary(host) do
+    host |> String.trim() |> String.downcase() |> String.trim_trailing(".")
   end
 
   defp create_app(client, slug, host, opts) do
@@ -116,17 +197,5 @@ defmodule Cleat.Commands.Drop do
       Output.success("Registered static app #{app["slug"]} (##{app["id"]}) → #{host}")
       {:ok, app["slug"]}
     end
-  end
-
-  defp slugify(nil), do: nil
-
-  defp slugify(name) when is_binary(name) do
-    slug =
-      name
-      |> String.downcase()
-      |> String.replace(~r/[^a-z0-9]+/, "-")
-      |> String.trim("-")
-
-    if slug == "", do: nil, else: slug
   end
 end

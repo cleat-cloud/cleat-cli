@@ -65,6 +65,9 @@ defmodule Cleat.Config do
   @doc "Configured bearer token, if any."
   def token, do: get("token")
 
+  @doc "Configured base domain for static sites, if any."
+  def sites_base_domain, do: get("sites_base_domain")
+
   def get(key) when is_binary(key) do
     case Map.get(load(), key) do
       value when is_binary(value) and value != "" -> value

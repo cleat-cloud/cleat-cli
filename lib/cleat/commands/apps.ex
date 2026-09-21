@@ -88,7 +88,7 @@ defmodule Cleat.Commands.Apps do
 
         attrs = %{
           "name" => opts[:name],
-          "slug" => opts[:slug] || slugify(opts[:name]),
+          "slug" => opts[:slug] || Cleat.Slug.from_name(opts[:name]),
           "github_repo" => opts[:repo],
           "branch" => opts[:branch] || "main",
           "host" => host,
@@ -284,16 +284,4 @@ defmodule Cleat.Commands.Apps do
   defp server_name(%{"server" => %{"name" => name}}) when is_binary(name), do: name
   defp server_name(%{"server" => %{"id" => id}}) when is_integer(id), do: "##{id}"
   defp server_name(_), do: "—"
-
-  defp slugify(nil), do: nil
-
-  defp slugify(name) when is_binary(name) do
-    slug =
-      name
-      |> String.downcase()
-      |> String.replace(~r/[^a-z0-9]+/, "-")
-      |> String.trim("-")
-
-    if slug == "", do: nil, else: slug
-  end
 end

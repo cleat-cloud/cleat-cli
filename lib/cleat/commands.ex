@@ -85,6 +85,37 @@ defmodule Cleat.Commands do
   end
 
   @doc """
+  Base domain for static sites. Resolution order: `--sites-base-domain`,
+  `CLEAT_SITES_BASE_DOMAIN`, the stored `sites_base_domain`, then the regular
+  `base_domain` as a fallback.
+  """
+  def sites_base_domain(opts) do
+    non_empty(opts[:sites_base_domain]) ||
+      non_empty(System.get_env("CLEAT_SITES_BASE_DOMAIN")) ||
+      Config.sites_base_domain() || base_domain(opts)
+  end
+
+  @doc """
+  Builds a static-site host from `slug` and the configured sites base domain.
+
+  Returns `{:ok, host}` or `{:error, message}`.
+  """
+  def static_host(slug, opts) do
+    case normalize_base(sites_base_domain(opts)) do
+      nil ->
+        {:error,
+         "no sites base domain configured. Run `cleat config set sites_base_domain " <>
+           "sites.example.com`, set CLEAT_SITES_BASE_DOMAIN, or pass --host / --sites-base-domain."}
+
+      base ->
+        case Cleat.Slug.from_name(slug) do
+          nil -> {:error, "could not derive a slug; pass --slug"}
+          sub -> {:ok, "#{sub}.#{base}"}
+        end
+    end
+  end
+
+  @doc """
   Resolves the app host from `--host` or from `--subdomain` + the base domain.
 
   Returns `{:ok, host}` or `{:error, message}`.
