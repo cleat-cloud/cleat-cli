@@ -5,7 +5,7 @@ defmodule Cleat.Commands.Completions do
 
   @commands ~w(
     login logout whoami init config servers apps env deploy drop cancel status
-    logs completions version help
+    logs completions mcp version help
   )
 
   @subcommands %{

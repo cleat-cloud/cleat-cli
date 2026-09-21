@@ -100,6 +100,7 @@ defmodule Cleat.CLI do
   defp dispatch(["logout"], opts), do: run(Logout.run(opts))
   defp dispatch(["whoami"], opts), do: run(Whoami.run(opts))
   defp dispatch(["init"], opts), do: run(Init.run(opts))
+  defp dispatch(["mcp"], _opts), do: Cleat.MCP.Server.run()
   defp dispatch(["config" | rest], opts), do: run(Config.run(rest, opts))
   defp dispatch(["completions" | rest], opts), do: run(Completions.run(rest, opts))
   defp dispatch(["servers" | rest], opts), do: run(Servers.run(rest, opts))
@@ -141,7 +142,8 @@ defmodule Cleat.CLI do
     Enum.map_join(invalid, ", ", fn {switch, _value} -> switch end)
   end
 
-  defp usage do
+  @doc false
+  def usage do
     """
     cleat #{@version} — deploy and manage apps on a Cleat panel
 
@@ -154,6 +156,8 @@ defmodule Cleat.CLI do
 
     Project
       init                                  Write .cleat_deploy/deploy.json
+      mcp                                    Run as an MCP server on stdio
+                                             (register: claude mcp add cleat -- cleat mcp)
       config [list|get|set|unset]           Show or edit CLI config
       completions bash|zsh                  Print a shell completion script
 

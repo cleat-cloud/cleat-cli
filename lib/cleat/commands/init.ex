@@ -6,7 +6,14 @@ defmodule Cleat.Commands.Init do
   @manifest_dir ".cleat_deploy"
   @manifest_path Path.join(@manifest_dir, "deploy.json")
 
-  def run(opts) do
+  @doc """
+  Writes the manifest without printing anything.
+
+  Returns `{:ok, %{path: path, runtime: runtime}}` or `{:error, message}`.
+  Used by both `cleat init` and the MCP `init_project` tool, whose stdout is
+  reserved for JSON-RPC frames.
+  """
+  def write(opts) do
     path = Path.join(File.cwd!(), @manifest_path)
 
     if File.exists?(path) and !opts[:yes] do
@@ -16,9 +23,20 @@ defmodule Cleat.Commands.Init do
       File.mkdir_p!(Path.dirname(path))
       File.write!(path, Jason.encode!(manifest, pretty: true) <> "\n")
 
-      Output.success("Created #{@manifest_path}")
-      Output.info("Commit it so the panel can read your deploy settings.")
-      :ok
+      {:ok, %{path: @manifest_path, runtime: manifest["runtime"]}}
+    end
+  end
+
+  @doc "CLI wrapper around `write/1` that prints the human-facing messages."
+  def run(opts) do
+    case write(opts) do
+      {:ok, %{path: path}} ->
+        Output.success("Created #{path}")
+        Output.info("Commit it so the panel can read your deploy settings.")
+        :ok
+
+      {:error, message} ->
+        {:error, message}
     end
   end
 

@@ -7,7 +7,6 @@ defmodule Cleat.Commands.Drop do
   alias Cleat.Commands.Deploy
 
   @usage "usage: cleat drop [DIR|FILE] --app APP   (or --server ID --host DOMAIN [--slug SLUG])"
-  @excludes ~w(.git node_modules .DS_Store)
 
   def run(args, opts) do
     target = List.first(args) || "."
@@ -56,7 +55,7 @@ defmodule Cleat.Commands.Drop do
   end
 
   defp drop_dir(label, dir, opts, default_slug) do
-    with {:ok, tarball} <- pack(dir) do
+    with {:ok, tarball} <- Cleat.Pack.pack(dir) do
       try do
         with {:ok, client} <- Commands.client(opts),
              {:ok, app} <- resolve_app(client, opts, default_slug),
@@ -116,24 +115,6 @@ defmodule Cleat.Commands.Drop do
       app = Commands.data(body)
       Output.success("Registered static app #{app["slug"]} (##{app["id"]}) → #{host}")
       {:ok, app["slug"]}
-    end
-  end
-
-  defp pack(dir) do
-    path =
-      Path.join(
-        System.tmp_dir!(),
-        "cleat_drop_#{System.system_time(:millisecond)}_#{:erlang.unique_integer([:positive])}.tar.gz"
-      )
-
-    args =
-      ["-czf", path] ++
-        Enum.flat_map(@excludes, &["--exclude", &1]) ++
-        ["-C", dir, "."]
-
-    case System.cmd("tar", args, stderr_to_stdout: true) do
-      {_output, 0} -> {:ok, path}
-      {output, _code} -> {:error, "tar failed: #{String.trim(output)}"}
     end
   end
 
