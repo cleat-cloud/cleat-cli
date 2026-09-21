@@ -41,7 +41,13 @@ defmodule Cleat.Commands.Deploy do
           {:ok, slug}
 
         nil ->
-          register_repo(client, repo, opts)
+          slug = repo_slug(repo, opts)
+
+          if Enum.any?(apps, &(&1["slug"] == slug)) do
+            {:error, "app #{slug} already exists; pass --slug to pick another name"}
+          else
+            register_repo(client, repo, opts)
+          end
       end
     end
   end
@@ -52,8 +58,10 @@ defmodule Cleat.Commands.Deploy do
         {:error, "#{repo} is not registered. Pass --server ID (and a host)."}
 
       true ->
-        case repo_host(repo, opts) do
-          {:ok, host} -> register(client, repo, host, opts)
+        slug = repo_slug(repo, opts)
+
+        case repo_host(slug, repo, opts) do
+          {:ok, host} -> register(client, repo, host, slug, opts)
           {:error, message} -> {:error, message}
         end
     end
@@ -61,14 +69,13 @@ defmodule Cleat.Commands.Deploy do
 
   # Static-only repos default to <slug>.<sites_base_domain> when the local
   # checkout is a plain static site and no host was given.
-  defp repo_host(repo, opts) do
+  defp repo_host(slug, repo, opts) do
     case Commands.host(opts) do
       {:ok, host} ->
         {:ok, host}
 
       {:error, :missing_host} ->
         if Static.detect?(File.cwd!()) do
-          slug = opts[:slug] || Cleat.Slug.from_name(Path.basename(repo))
           Commands.static_host(slug, opts)
         else
           {:error, "#{repo} is not registered. Pass --host DOMAIN or --subdomain NAME."}
@@ -79,9 +86,7 @@ defmodule Cleat.Commands.Deploy do
     end
   end
 
-  defp register(client, repo, host, opts) do
-    slug = opts[:slug] || Cleat.Slug.from_name(Path.basename(repo))
-
+  defp register(client, repo, host, slug, opts) do
     attrs = %{
       "name" => opts[:name] || slug,
       "slug" => slug,
@@ -97,6 +102,18 @@ defmodule Cleat.Commands.Deploy do
       Output.success("Registered app #{app["slug"]} (##{app["id"]})")
       {:ok, app["slug"]}
     end
+  end
+
+  # An explicit --slug wins; otherwise slugify the repo basename, dropping a
+  # trailing `.git` so `owner/repo.git` registers as `repo`.
+  defp repo_slug(repo, opts) do
+    opts[:slug] || Cleat.Slug.from_name(repo_basename(repo))
+  end
+
+  defp repo_basename(repo) do
+    base = Path.basename(repo)
+
+    if String.ends_with?(base, ".git"), do: Path.rootname(base), else: base
   end
 
   # An explicit --runtime always wins; otherwise detect from the local checkout so
