@@ -105,7 +105,7 @@ defmodule Cleat.MCP.Tools do
   defp drop_host(args, slug) do
     cond do
       present?(args, "host") ->
-        {:ok, args["host"]}
+        {:ok, normalize_host(args["host"])}
 
       Cleat.Static.detect?(args["path"]) ->
         Cleat.Commands.static_host(slug, sites_opts(args))
@@ -151,7 +151,9 @@ defmodule Cleat.MCP.Tools do
             reuse_static(app, slug, args)
 
           %{"runtime" => runtime} ->
-            {:error, "app #{slug} already exists with runtime #{runtime}"}
+            {:error,
+             "app #{slug} already exists with runtime #{runtime}; use a different slug " <>
+               "(or pass --app to target another app)"}
 
           _other ->
             :ok
@@ -171,18 +173,27 @@ defmodule Cleat.MCP.Tools do
         {:error, :exists}
       else
         {:error,
-         "app #{slug} already exists as static on #{app["host"]}; drop without " <>
-           "host to reuse it, or use a different slug"}
+         "app #{slug} already exists as static #{host_phrase(app["host"])}; drop without " <>
+           "--host/--subdomain to reuse it, or use a different --slug"}
       end
     else
       {:error, :exists}
     end
   end
 
+  defp host_phrase(nil), do: "on an unset host"
+
+  defp host_phrase(host) when is_binary(host) do
+    case String.trim(host) do
+      "" -> "on an unset host"
+      value -> "on #{value}"
+    end
+  end
+
   defp normalize_host(nil), do: nil
 
   defp normalize_host(host) when is_binary(host) do
-    host |> String.downcase() |> String.trim_trailing(".")
+    host |> String.trim() |> String.downcase() |> String.trim_trailing(".")
   end
 
   defp register_static_app(client, slug, host, server) do

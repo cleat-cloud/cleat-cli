@@ -209,6 +209,62 @@ defmodule Cleat.Commands.DeployTest do
     assert message =~ "already exists"
   end
 
+  test "reuses an existing static app when an unknown repo slug collides" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => "minha-loja", "runtime" => "static", "github_repo" => nil}]
+          })
+
+        {"POST", "/api/v1/apps/minha-loja/deployments"} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 50, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request: #{inspect(other)}")
+      end
+    end)
+
+    assert :ok =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5",
+               host: "x.example.com"
+             })
+  end
+
+  test "rejects an unknown repo whose slug collides with a non-static app" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => "minha-loja", "runtime" => "phoenix", "github_repo" => "someone/else"}
+            ]
+          })
+
+        other ->
+          flunk("unexpected request: #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Deploy.run(nil, %{
+               panel: "https://panel.test",
+               token: "tok",
+               repo: "owner/minha-loja",
+               server: "5",
+               host: "x.example.com"
+             })
+
+    assert message =~ "already exists"
+    assert message =~ "phoenix"
+  end
+
   test "strips a .git suffix when deriving the slug" do
     Req.Test.stub(__MODULE__, fn conn ->
       case {conn.method, conn.request_path} do

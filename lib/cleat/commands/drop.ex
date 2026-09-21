@@ -6,7 +6,7 @@ defmodule Cleat.Commands.Drop do
   alias Cleat.{Client, Commands, Output, Static}
   alias Cleat.Commands.Deploy
 
-  @usage "usage: cleat drop [DIR|FILE] --app APP   (or --server ID --host DOMAIN [--slug SLUG])"
+  @usage "usage: cleat drop [DIR|FILE] --app APP | --server ID [--host DOMAIN | static auto] [--slug SLUG]"
 
   def run(args, opts) do
     target = List.first(args) || "."
@@ -37,7 +37,7 @@ defmodule Cleat.Commands.Drop do
         Path.basename(file)
       end
 
-    slug = Path.basename(file) |> Path.rootname() |> Cleat.Slug.from_name()
+    slug = Static.site_slug(file)
 
     try do
       with :ok <- File.cp(file, Path.join(staging, name)) do
@@ -51,7 +51,7 @@ defmodule Cleat.Commands.Drop do
   end
 
   defp drop_dir(label, dir, opts) do
-    drop_dir(label, dir, opts, Cleat.Slug.from_name(Path.basename(dir)))
+    drop_dir(label, dir, opts, Static.site_slug(dir))
   end
 
   defp drop_dir(label, dir, opts, default_slug) do
@@ -156,7 +156,7 @@ defmodule Cleat.Commands.Drop do
           {:error, :exists}
         else
           {:error,
-           "app #{slug} already exists as static on #{app["host"]}; drop without " <>
+           "app #{slug} already exists as static #{host_phrase(app["host"])}; drop without " <>
              "--host/--subdomain to reuse it, or use a different --slug"}
         end
 
@@ -168,10 +168,19 @@ defmodule Cleat.Commands.Drop do
     end
   end
 
+  defp host_phrase(nil), do: "on an unset host"
+
+  defp host_phrase(host) when is_binary(host) do
+    case String.trim(host) do
+      "" -> "on an unset host"
+      value -> "on #{value}"
+    end
+  end
+
   defp normalize_host(nil), do: nil
 
   defp normalize_host(host) when is_binary(host) do
-    host |> String.downcase() |> String.trim_trailing(".")
+    host |> String.trim() |> String.downcase() |> String.trim_trailing(".")
   end
 
   defp create_app(client, slug, host, opts) do

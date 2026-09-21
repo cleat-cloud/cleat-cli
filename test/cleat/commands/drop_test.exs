@@ -342,6 +342,43 @@ defmodule Cleat.Commands.DropTest do
     assert message =~ "old.example.com"
   end
 
+  test "host clash falls back when the existing static app has no host" do
+    dir = Path.join(System.tmp_dir!(), "cleat-drop-nohost-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Path.basename(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => slug, "runtime" => "static", "host" => nil}]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Drop.run(
+               [dir],
+               %{
+                 panel: "https://panel.test",
+                 token: "tok",
+                 server: "5",
+                 host: "new.example.com"
+               }
+             )
+
+    assert message =~ "already exists"
+    assert message =~ "unset host"
+    refute message =~ "on ;"
+  end
+
   test "errors when the slug exists with another runtime" do
     dir =
       Path.join(System.tmp_dir!(), "cleat-drop-conflict-#{System.unique_integer([:positive])}")

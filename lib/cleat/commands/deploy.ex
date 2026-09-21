@@ -43,10 +43,21 @@ defmodule Cleat.Commands.Deploy do
         nil ->
           slug = repo_slug(repo, opts)
 
-          if Enum.any?(apps, &(&1["slug"] == slug)) do
-            {:error, "app #{slug} already exists; pass --slug to pick another name"}
-          else
-            register_repo(client, repo, opts)
+          case Enum.find(apps, &(&1["slug"] == slug)) do
+            nil ->
+              register_repo(client, repo, opts)
+
+            %{"runtime" => "static"} ->
+              # A static app with the same slug can be targeted as-is; do not
+              # require or set a github_repo.
+              {:ok, slug}
+
+            %{"runtime" => runtime} when is_binary(runtime) ->
+              {:error,
+               "app #{slug} already exists with runtime #{runtime}; pass --slug to pick another name"}
+
+            _other ->
+              {:error, "app #{slug} already exists; pass --slug to pick another name"}
           end
       end
     end

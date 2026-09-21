@@ -286,7 +286,7 @@ defmodule Cleat.MCP.ToolsTest do
           body = Jason.decode!(Req.Test.raw_body(conn))
           assert body["runtime"] == "static"
           assert body["server_id"] == "3"
-          assert body["host"] == "landing.example.com"
+          assert body["host"] == "new.example.com"
           assert body["slug"] == slug
 
           conn
@@ -304,7 +304,7 @@ defmodule Cleat.MCP.ToolsTest do
              Tools.call("drop", %{
                "path" => dir,
                "server" => "3",
-               "host" => "landing.example.com",
+               "host" => "New.Example.COM",
                "panel" => "https://panel.test",
                "token" => "tok"
              })
@@ -481,6 +481,42 @@ defmodule Cleat.MCP.ToolsTest do
 
     assert message =~ "existing.example.com"
     assert message =~ "already exists"
+  end
+
+  test "drop host clash falls back when the existing static app has no host" do
+    dir =
+      Path.join(System.tmp_dir!(), "mcp-drop-nohost-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => slug, "runtime" => "static", "host" => nil}]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "host" => "other.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "already exists"
+    assert message =~ "unset host"
+    refute message =~ "on ;"
   end
 
   test "drop errors when the slug exists with another runtime" do
