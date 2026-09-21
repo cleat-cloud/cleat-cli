@@ -55,7 +55,26 @@ defmodule Cleat.Client do
 
   def delete_app(client, app), do: request(client, :delete, "/api/v1/apps/#{app}")
 
-  def app_logs(client, app), do: request(client, :get, "/api/v1/apps/#{app}/logs")
+  def app_logs(client, app), do: app_logs(client, app, %{})
+
+  def app_logs(%__MODULE__{} = client, app, opts) when is_map(opts) do
+    request(client, :get, "/api/v1/apps/#{app}/logs", params: log_params(opts))
+  end
+
+  def server_logs(%__MODULE__{} = client, id, opts \\ %{}) when is_map(opts) do
+    request(client, :get, "/api/v1/servers/#{id}/logs", params: log_params(opts))
+  end
+
+  defp log_params(opts) do
+    %{
+      "tail" => opts[:tail],
+      "since" => opts[:since],
+      "grep" => opts[:grep],
+      "unit" => opts[:unit]
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+  end
 
   def cancel_deploy(client, app),
     do: request(client, :post, "/api/v1/apps/#{app}/cancel", json: %{})
@@ -134,21 +153,28 @@ defmodule Cleat.Client do
 
   defp error_message(status, body) when is_map(body) do
     case body["error"] do
-      error when is_binary(error) -> humanize(error) <> error_details(body)
+      error when is_binary(error) -> humanize(error) <> error_message_detail(body)
       _ -> "HTTP #{status}"
     end
   end
 
   defp error_message(status, _body), do: "HTTP #{status}"
 
-  defp error_details(%{"details" => details}) when is_map(details) and map_size(details) > 0 do
+  # The panel returns a `message` for actionable errors (e.g. "invalid since
+  # (use 30m, 2h, 1d or 2026-09-21)") and a `details` map for field errors.
+  defp error_message_detail(%{"details" => details})
+       when is_map(details) and map_size(details) > 0 do
     " (" <>
       Enum.map_join(details, ", ", fn {field, messages} ->
         "#{field}: #{Enum.join(List.wrap(messages), ", ")}"
       end) <> ")"
   end
 
-  defp error_details(_), do: ""
+  defp error_message_detail(%{"message" => message}) when is_binary(message) and message != "" do
+    " (" <> message <> ")"
+  end
+
+  defp error_message_detail(_), do: ""
 
   defp humanize(error) do
     error

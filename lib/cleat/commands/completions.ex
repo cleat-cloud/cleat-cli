@@ -9,7 +9,7 @@ defmodule Cleat.Commands.Completions do
   )
 
   @subcommands %{
-    "servers" => ~w(list show create sync delete),
+    "servers" => ~w(list show create sync delete logs),
     "apps" => ~w(list show create update delete logs),
     "env" => ~w(list set unset),
     "config" => ~w(list get set unset)
