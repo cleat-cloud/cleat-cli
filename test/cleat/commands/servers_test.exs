@@ -136,4 +136,49 @@ defmodule Cleat.Commands.ServersTest do
 
     assert :ok = Servers.run(["sync", "3"], @conn)
   end
+
+  test "prints server logs" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/servers/5/logs"
+
+      Req.Test.json(conn, %{"data" => %{"lines" => ["host line one", "host line two"]}})
+    end)
+
+    output = capture_io(fn -> assert :ok = Servers.run(["logs", "5"], @conn) end)
+    assert output =~ "host line one"
+    assert output =~ "host line two"
+  end
+
+  test "passes --unit to the server logs endpoint" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/servers/5/logs"
+      assert URI.decode_query(conn.query_string) == %{"unit" => "caddy"}
+
+      Req.Test.json(conn, %{"data" => %{"lines" => []}})
+    end)
+
+    assert :ok = Servers.run(["logs", "5"], Map.put(@conn, :unit, "caddy"))
+  end
+
+  test "passes log filters to the server logs endpoint" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      params = URI.decode_query(conn.query_string)
+      assert params["tail"] == "50"
+      assert params["since"] == "1h"
+      assert params["grep"] == "error"
+
+      Req.Test.json(conn, %{"data" => %{"lines" => []}})
+    end)
+
+    assert :ok =
+             Servers.run(
+               ["logs", "5"],
+               @conn
+               |> Map.put(:tail, 50)
+               |> Map.put(:since, "1h")
+               |> Map.put(:grep, "error")
+             )
+  end
 end

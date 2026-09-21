@@ -31,6 +31,7 @@ defmodule Cleat.MCP.ToolsTest do
     assert names == [
              "whoami",
              "servers_list",
+             "server_logs",
              "apps_list",
              "apps_show",
              "apps_create",
@@ -107,6 +108,57 @@ defmodule Cleat.MCP.ToolsTest do
   test "apps_update with an empty update returns an actionable error" do
     assert {:error, message} = Tools.call("apps_update", %{"app" => "my-app"})
     assert message =~ "nothing to update"
+  end
+
+  test "apps_logs forwards tail, since and grep filters" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/apps/landing/logs"
+
+      params = URI.decode_query(conn.query_string)
+      assert params["tail"] == "100"
+      assert params["since"] == "30m"
+      assert params["grep"] == "ERROR"
+
+      Req.Test.json(conn, %{"data" => %{"lines" => ["ERROR boom"]}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("apps_logs", %{
+               "app" => "landing",
+               "tail" => 100,
+               "since" => "30m",
+               "grep" => "ERROR",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["lines"] == ["ERROR boom"]
+  end
+
+  test "server_logs GETs /api/v1/servers/5/logs with the unit filter" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/servers/5/logs"
+      assert URI.decode_query(conn.query_string)["unit"] == "caddy"
+
+      Req.Test.json(conn, %{"data" => %{"lines" => ["caddy log"]}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("server_logs", %{
+               "server" => "5",
+               "unit" => "caddy",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["lines"] == ["caddy log"]
+  end
+
+  test "server_logs requires a server" do
+    assert {:error, message} = Tools.call("server_logs", %{})
+    assert message =~ "server"
   end
 
   test "init_project does not write to stdout" do

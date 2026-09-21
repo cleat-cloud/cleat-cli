@@ -239,6 +239,35 @@ defmodule Cleat.MCP.Tools do
         end
       },
       %{
+        "name" => "server_logs",
+        "description" => "Runtime (systemd) logs for a server",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "server" => %{"type" => "string", "description" => "Server id"},
+            "unit" => %{"type" => "string"},
+            "tail" => %{"type" => "integer"},
+            "since" => %{"type" => "string"},
+            "grep" => %{"type" => "string"},
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["server"]
+        },
+        "handler" => fn args ->
+          with_client(args, fn client ->
+            with {:ok, body} <-
+                   Client.server_logs(client, args["server"], %{
+                     unit: args["unit"],
+                     tail: args["tail"],
+                     since: args["since"],
+                     grep: args["grep"]
+                   }),
+                 do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
         "name" => "apps_list",
         "description" => "List apps",
         "inputSchema" => %{
@@ -348,12 +377,25 @@ defmodule Cleat.MCP.Tools do
         "description" => "Runtime (systemd) logs for an app",
         "inputSchema" => %{
           "type" => "object",
-          "properties" => %{"app" => @app, "panel" => @panel, "token" => @token},
+          "properties" => %{
+            "app" => @app,
+            "tail" => %{"type" => "integer"},
+            "since" => %{"type" => "string"},
+            "grep" => %{"type" => "string"},
+            "panel" => @panel,
+            "token" => @token
+          },
           "required" => ["app"]
         },
         "handler" => fn args ->
           with_client(args, fn client ->
-            with {:ok, body} <- Client.app_logs(client, args["app"]), do: {:ok, data_text(body)}
+            with {:ok, body} <-
+                   Client.app_logs(client, args["app"], %{
+                     tail: args["tail"],
+                     since: args["since"],
+                     grep: args["grep"]
+                   }),
+                 do: {:ok, data_text(body)}
           end)
         end
       },

@@ -2,12 +2,14 @@ defmodule Cleat.Commands.Servers do
   @moduledoc false
 
   alias Cleat.{Client, Commands, Output}
+  alias Cleat.Commands.ServersLogs
 
-  @usage "usage: cleat servers list | cleat servers show ID | cleat servers create --name N --ip IP [--ssh-key-file F] | cleat servers provision --name N [--region fsn1] [--bundle cx33] [--mode shared] | cleat servers delete ID --yes | cleat servers sync ID | cleat servers start ID | cleat servers stop ID | cleat servers resize ID [--bundle BUNDLE]"
+  @usage "usage: cleat servers list | cleat servers show ID | cleat servers logs ID [--unit U] [--tail N] [--since S] [--grep T] [--follow] | cleat servers create --name N --ip IP [--ssh-key-file F] | cleat servers provision --name N [--region fsn1] [--bundle cx33] [--mode shared] | cleat servers delete ID --yes | cleat servers sync ID | cleat servers start ID | cleat servers stop ID | cleat servers resize ID [--bundle BUNDLE]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
   def run(["show", id], opts), do: show(id, opts)
+  def run(["logs", id | _rest], opts), do: ServersLogs.run(id, opts)
   def run(["create"], opts), do: create(opts)
   def run(["provision"], opts), do: provision(opts)
   def run(["delete", id | _rest], opts), do: delete(id, opts)

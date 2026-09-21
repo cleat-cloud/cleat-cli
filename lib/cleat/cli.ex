@@ -58,6 +58,10 @@ defmodule Cleat.CLI do
     binaries: :string,
     port: :integer,
     yes: :boolean,
+    tail: :integer,
+    since: :string,
+    grep: :string,
+    unit: :string,
     release_name: :string,
     systemd_unit: :string,
     release_path: :string,
@@ -182,7 +186,10 @@ defmodule Cleat.CLI do
         [--auto-deploy|--no-auto-deploy] \\
         [--host H] [--port N] [--repo O/R] \\
         [--runtime R]                       Edit repo / branch / auto-deploy / host / port / runtime
-      apps logs APP [--follow]              Runtime logs (systemd unit)
+      apps logs APP [--tail N] [--since S] [--grep T] [--follow]
+                                            Runtime logs (systemd unit)
+      servers logs ID [--unit U] [--tail N] [--since S] [--grep T] [--follow]
+                                            Server logs for a unit
 
     Environment
       env list APP [--reveal]               List env vars (secrets masked)
