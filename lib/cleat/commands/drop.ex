@@ -37,7 +37,7 @@ defmodule Cleat.Commands.Drop do
         Path.basename(file)
       end
 
-    slug = Path.basename(file) |> Path.rootname() |> slugify()
+    slug = Path.basename(file) |> Path.rootname() |> Cleat.Slug.from_name()
 
     try do
       with :ok <- File.cp(file, Path.join(staging, name)) do
@@ -51,7 +51,7 @@ defmodule Cleat.Commands.Drop do
   end
 
   defp drop_dir(label, dir, opts) do
-    drop_dir(label, dir, opts, slugify(Path.basename(dir)))
+    drop_dir(label, dir, opts, Cleat.Slug.from_name(Path.basename(dir)))
   end
 
   defp drop_dir(label, dir, opts, default_slug) do
@@ -116,17 +116,5 @@ defmodule Cleat.Commands.Drop do
       Output.success("Registered static app #{app["slug"]} (##{app["id"]}) → #{host}")
       {:ok, app["slug"]}
     end
-  end
-
-  defp slugify(nil), do: nil
-
-  defp slugify(name) when is_binary(name) do
-    slug =
-      name
-      |> String.downcase()
-      |> String.replace(~r/[^a-z0-9]+/, "-")
-      |> String.trim("-")
-
-    if slug == "", do: nil, else: slug
   end
 end

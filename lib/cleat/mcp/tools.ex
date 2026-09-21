@@ -91,7 +91,7 @@ defmodule Cleat.MCP.Tools do
   end
 
   defp register_static_app(client, args) do
-    slug = args["slug"] || slugify(Path.basename(args["path"]))
+    slug = args["slug"] || Cleat.Slug.from_name(Path.basename(args["path"]))
 
     attrs =
       %{
@@ -107,18 +107,6 @@ defmodule Cleat.MCP.Tools do
       {:ok, Commands.data(body)["slug"]}
     end
   end
-
-  defp slugify(name) when is_binary(name) do
-    case name
-         |> String.downcase()
-         |> String.replace(~r/[^a-z0-9]+/, "-")
-         |> String.trim("-") do
-      "" -> nil
-      slug -> slug
-    end
-  end
-
-  defp slugify(_name), do: nil
 
   defp tools do
     [

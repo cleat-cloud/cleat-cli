@@ -66,7 +66,7 @@ defmodule Cleat.Commands.Deploy do
   end
 
   defp register(client, repo, host, opts) do
-    slug = opts[:slug] || slugify(Path.basename(repo))
+    slug = opts[:slug] || Cleat.Slug.from_name(Path.basename(repo))
 
     attrs = %{
       "name" => opts[:name] || slug,
@@ -127,12 +127,5 @@ defmodule Cleat.Commands.Deploy do
       "" -> :ok
       delta -> IO.write(delta)
     end
-  end
-
-  defp slugify(name) when is_binary(name) do
-    name
-    |> String.downcase()
-    |> String.replace(~r/[^a-z0-9]+/, "-")
-    |> String.trim("-")
   end
 end
