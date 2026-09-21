@@ -5,19 +5,18 @@ defmodule Cleat.CommandsTest do
 
   alias Cleat.Commands
 
-  # Isolate from the developer's real ~/.config/cleat/config.json.
+  @isolated_env ~w(CLEAT_CONFIG CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN)
+
+  # Isolate from the developer's real config file and domain env vars.
   setup do
     path = Path.join(System.tmp_dir!(), "cleat_cfg_#{System.unique_integer([:positive])}.json")
-    previous = System.get_env("CLEAT_CONFIG")
+    previous = Map.new(@isolated_env, &{&1, System.get_env(&1)})
+
     System.put_env("CLEAT_CONFIG", path)
+    Enum.each(~w(CLEAT_BASE_DOMAIN CLEAT_SITES_BASE_DOMAIN), &System.delete_env/1)
 
     on_exit(fn ->
-      if previous do
-        System.put_env("CLEAT_CONFIG", previous)
-      else
-        System.delete_env("CLEAT_CONFIG")
-      end
-
+      Enum.each(previous, fn {key, value} -> restore_env(key, value) end)
       File.rm(path)
     end)
 
@@ -90,11 +89,29 @@ defmodule Cleat.CommandsTest do
     end)
   end
 
-  test "sites_base_domain falls back to base_domain" do
-    System.put_env("CLEAT_SITES_BASE_DOMAIN", "sites.example.com")
-    on_exit(fn -> System.delete_env("CLEAT_SITES_BASE_DOMAIN") end)
+  test "sites_base_domain prefers --sites-base-domain over the env var" do
+    System.put_env("CLEAT_SITES_BASE_DOMAIN", "env.example.com")
 
-    assert Commands.sites_base_domain(%{}) == "sites.example.com"
+    assert Commands.sites_base_domain(%{sites_base_domain: "flag.example.com"}) ==
+             "flag.example.com"
+  end
+
+  test "sites_base_domain reads CLEAT_SITES_BASE_DOMAIN when the flag is absent" do
+    System.put_env("CLEAT_SITES_BASE_DOMAIN", "env.example.com")
+
+    assert Commands.sites_base_domain(%{}) == "env.example.com"
+  end
+
+  test "sites_base_domain ignores an empty --sites-base-domain and falls through to env" do
+    System.put_env("CLEAT_SITES_BASE_DOMAIN", "env.example.com")
+
+    assert Commands.sites_base_domain(%{sites_base_domain: ""}) == "env.example.com"
+  end
+
+  test "sites_base_domain falls back to base_domain" do
+    Cleat.Config.put("base_domain", "apps.example.com")
+
+    assert Commands.sites_base_domain(%{}) == "apps.example.com"
   end
 
   test "static_host builds <slug>.<sites_base_domain>" do
@@ -112,9 +129,17 @@ defmodule Cleat.CommandsTest do
              Commands.static_host("Minha Loja", %{sites_base_domain: "sites.example.com"})
   end
 
+  test "static_host errors on a nil slug" do
+    assert {:error, _} =
+             Cleat.Commands.static_host(nil, %{sites_base_domain: "sites.example.com"})
+  end
+
   defp tmp_file(prefix) do
     path = Path.join(System.tmp_dir!(), "#{prefix}-#{System.unique_integer([:positive])}")
     on_exit(fn -> File.rm(path) end)
     path
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 end

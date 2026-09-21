@@ -90,7 +90,8 @@ defmodule Cleat.Commands do
   `base_domain` as a fallback.
   """
   def sites_base_domain(opts) do
-    opts[:sites_base_domain] || non_empty(System.get_env("CLEAT_SITES_BASE_DOMAIN")) ||
+    non_empty(opts[:sites_base_domain]) ||
+      non_empty(System.get_env("CLEAT_SITES_BASE_DOMAIN")) ||
       Config.sites_base_domain() || base_domain(opts)
   end
 
@@ -104,7 +105,7 @@ defmodule Cleat.Commands do
       nil ->
         {:error,
          "no sites base domain configured. Run `cleat config set sites_base_domain " <>
-           "sites.example.com`, set CLEAT_SITES_BASE_DOMAIN, or pass --host."}
+           "sites.example.com`, set CLEAT_SITES_BASE_DOMAIN, or pass --host / --sites-base-domain."}
 
       base ->
         case Cleat.Slug.from_name(slug) do
