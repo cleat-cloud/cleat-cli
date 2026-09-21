@@ -65,6 +65,45 @@ defmodule Cleat.ClientTest do
     assert message =~ "slug: has already been taken"
   end
 
+  test "app_logs passes tail, since and grep as query params" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/apps/lumina/logs"
+      assert conn.query_string == "grep=error&since=1h&tail=50"
+      Req.Test.json(conn, %{"data" => %{"lines" => []}})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => %{"lines" => []}}} =
+             Client.app_logs(client, "lumina", %{since: "1h", tail: 50, grep: "error"})
+  end
+
+  test "server_logs passes filters as query params" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/servers/5/logs"
+      assert conn.query_string == "tail=100"
+      Req.Test.json(conn, %{"data" => %{"lines" => []}})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => %{"lines" => []}}} = Client.server_logs(client, 5, %{tail: 100})
+  end
+
+  test "app_logs/2 still works without query params" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/apps/lumina/logs"
+      assert conn.query_string == ""
+      Req.Test.json(conn, %{"data" => %{"lines" => []}})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => %{"lines" => []}}} = Client.app_logs(client, "lumina")
+  end
+
   test "trailing slash in the panel URL is trimmed" do
     assert %Client{panel_url: "https://panel.test"} = Client.new("https://panel.test/")
   end

@@ -55,7 +55,26 @@ defmodule Cleat.Client do
 
   def delete_app(client, app), do: request(client, :delete, "/api/v1/apps/#{app}")
 
-  def app_logs(client, app), do: request(client, :get, "/api/v1/apps/#{app}/logs")
+  def app_logs(client, app), do: app_logs(client, app, %{})
+
+  def app_logs(%__MODULE__{} = client, app, opts) when is_map(opts) do
+    request(client, :get, "/api/v1/apps/#{app}/logs", params: log_params(opts))
+  end
+
+  def server_logs(%__MODULE__{} = client, id, opts \\ %{}) when is_map(opts) do
+    request(client, :get, "/api/v1/servers/#{id}/logs", params: log_params(opts))
+  end
+
+  defp log_params(opts) do
+    %{
+      "tail" => opts[:tail],
+      "since" => opts[:since],
+      "grep" => opts[:grep],
+      "unit" => opts[:unit]
+    }
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+  end
 
   def cancel_deploy(client, app),
     do: request(client, :post, "/api/v1/apps/#{app}/cancel", json: %{})

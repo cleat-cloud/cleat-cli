@@ -180,7 +180,7 @@ defmodule Cleat.Commands.Apps do
 
   defp logs(app, opts) do
     with {:ok, client} <- Commands.client(opts),
-         {:ok, body} <- Client.app_logs(client, app) do
+         {:ok, body} <- Client.app_logs(client, app, log_opts(opts)) do
       data = Commands.data(body)
       lines = data["lines"] || []
 
@@ -191,7 +191,7 @@ defmodule Cleat.Commands.Apps do
         print_lines(lines, app, opts[:follow])
 
         if opts[:follow] do
-          follow(client, app, MapSet.new(lines), 0)
+          follow(client, app, log_opts(opts), MapSet.new(lines), 0)
         else
           :ok
         end
@@ -199,24 +199,26 @@ defmodule Cleat.Commands.Apps do
     end
   end
 
+  defp log_opts(opts), do: %{tail: opts[:tail], since: opts[:since], grep: opts[:grep]}
+
   defp print_lines([], app, true),
     do: Output.info("No runtime logs for #{app} yet. Following…")
 
   defp print_lines([], app, _follow), do: Output.info("No runtime logs for #{app}.")
   defp print_lines(lines, _app, _follow), do: Output.info(Enum.join(lines, "\n"))
 
-  defp follow(client, app, seen, polls) do
+  defp follow(client, app, log_opts, seen, polls) do
     if polls >= max_polls() do
       :ok
     else
       Process.sleep(interval_ms())
 
-      case Client.app_logs(client, app) do
+      case Client.app_logs(client, app, log_opts) do
         {:ok, body} ->
           lines = Commands.data(body)["lines"] || []
           {fresh, seen} = fresh_lines(lines, seen)
           Enum.each(fresh, &IO.puts/1)
-          follow(client, app, prune(seen, lines), polls + 1)
+          follow(client, app, log_opts, prune(seen, lines), polls + 1)
 
         {:error, message} ->
           Output.error(message)

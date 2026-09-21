@@ -183,6 +183,28 @@ defmodule Cleat.Commands.AppsTest do
     assert output =~ "line b"
   end
 
+  test "passes log filters as query params" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/apps/my-app/logs"
+      assert conn.query_string == "grep=error&since=1h&tail=50"
+
+      Req.Test.json(conn, %{
+        "data" => %{"unit" => "phx-my-app", "lines" => ["boom"], "fetched_at" => "t"}
+      })
+    end)
+
+    opts =
+      @conn
+      |> Map.put(:since, "1h")
+      |> Map.put(:tail, 50)
+      |> Map.put(:grep, "error")
+
+    output = capture_io(fn -> assert :ok = Apps.run(["logs", "my-app"], opts) end)
+
+    assert output =~ "boom"
+  end
+
   test "follows runtime logs and prints only new lines" do
     Application.put_env(:cleat_cli, :logs_follow_interval_ms, 0)
     Application.put_env(:cleat_cli, :logs_follow_max_polls, 1)
