@@ -71,6 +71,7 @@ panel and is stored as a hash server-side.
 | `cleat cancel APP` | Cancel the active deploy |
 | `cleat status APP` | List recent deployments for an app |
 | `cleat logs DEPLOYMENT_ID` | Print a deployment's build log |
+| `cleat mcp` | Run as a Model Context Protocol server on stdio |
 
 Run `cleat help` for the full option list.
 

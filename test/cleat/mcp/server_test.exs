@@ -14,6 +14,24 @@ defmodule Cleat.MCP.ServerTest do
     assert result["serverInfo"]["version"] == Mix.Project.config()[:version]
   end
 
+  test "initialize echoes a client protocolVersion" do
+    request = %{
+      "jsonrpc" => "2.0",
+      "id" => 20,
+      "method" => "initialize",
+      "params" => %{"protocolVersion" => "2024-11-05"}
+    }
+
+    assert %{"result" => result} = Server.handle(request)
+    assert result["protocolVersion"] == "2024-11-05"
+  end
+
+  test "initialize defaults protocolVersion when the client sends none" do
+    request = %{"jsonrpc" => "2.0", "id" => 21, "method" => "initialize", "params" => %{}}
+    assert %{"result" => result} = Server.handle(request)
+    assert result["protocolVersion"] == "2025-06-18"
+  end
+
   test "lists tools" do
     request = %{"jsonrpc" => "2.0", "id" => 2, "method" => "tools/list"}
     assert %{"result" => %{"tools" => tools}} = Server.handle(request)

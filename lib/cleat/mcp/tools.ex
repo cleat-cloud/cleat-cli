@@ -65,12 +65,60 @@ defmodule Cleat.MCP.Tools do
   defp json(data), do: Jason.encode!(data)
 
   defp with_client(args, fun) do
-    with {:ok, client} <- Commands.client(opts(args)) do
+    with :ok <- validate_token(args),
+         {:ok, client} <- Commands.client(opts(args)) do
       fun.(client)
     end
   end
 
+  defp validate_token(%{"token" => "-"}),
+    do: {:error, "token '-' (stdin) is not supported over MCP"}
+
+  defp validate_token(_args), do: :ok
+
   defp data_text(body), do: json(Commands.data(body))
+
+  defp resolve_drop_app(_client, %{"app" => app}) when is_binary(app) and app != "" do
+    {:ok, app}
+  end
+
+  defp resolve_drop_app(client, args) do
+    if present?(args, "server") and present?(args, "host") do
+      register_static_app(client, args)
+    else
+      {:error, "drop requires app, or server and host to register one"}
+    end
+  end
+
+  defp register_static_app(client, args) do
+    slug = args["slug"] || slugify(Path.basename(args["path"]))
+
+    attrs =
+      %{
+        "name" => slug,
+        "slug" => slug,
+        "host" => args["host"],
+        "server_id" => args["server"],
+        "runtime" => "static"
+      }
+      |> Map.reject(fn {_k, v} -> is_nil(v) or v == "" end)
+
+    with {:ok, body} <- Client.create_app(client, attrs) do
+      {:ok, Commands.data(body)["slug"]}
+    end
+  end
+
+  defp slugify(name) when is_binary(name) do
+    case name
+         |> String.downcase()
+         |> String.replace(~r/[^a-z0-9]+/, "-")
+         |> String.trim("-") do
+      "" -> nil
+      slug -> slug
+    end
+  end
+
+  defp slugify(_name), do: nil
 
   defp tools do
     [
@@ -357,17 +405,24 @@ defmodule Cleat.MCP.Tools do
           "properties" => %{
             "path" => %{"type" => "string"},
             "app" => @app,
+            "server" => %{
+              "type" => "string",
+              "description" => "Server id to register a static app on"
+            },
+            "host" => %{"type" => "string", "description" => "Host for the registered static app"},
+            "slug" => %{"type" => "string", "description" => "Slug for the registered static app"},
             "ref" => %{"type" => "string"},
             "panel" => @panel,
             "token" => @token
           },
-          "required" => ["path", "app"]
+          "required" => ["path"]
         },
         "handler" => fn args ->
           with {:ok, tarball} <- Cleat.Pack.pack(args["path"]) do
             try do
               with_client(args, fn client ->
-                with {:ok, body} <- Client.create_drop(client, args["app"], tarball, args["ref"]),
+                with {:ok, app} <- resolve_drop_app(client, args),
+                     {:ok, body} <- Client.create_drop(client, app, tarball, args["ref"]),
                      do: {:ok, data_text(body)}
               end)
             after

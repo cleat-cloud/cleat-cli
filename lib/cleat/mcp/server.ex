@@ -19,7 +19,7 @@ defmodule Cleat.MCP.Server do
 
     cond do
       is_nil(id) -> :noreply
-      method == "initialize" -> Protocol.response(id, initialize_result())
+      method == "initialize" -> Protocol.response(id, initialize_result(params))
       method == "tools/list" -> Protocol.response(id, %{"tools" => Tools.list()})
       method == "tools/call" -> call_tool(id, params)
       method == "ping" -> Protocol.response(id, %{})
@@ -31,13 +31,16 @@ defmodule Cleat.MCP.Server do
   def handle(%{"id" => id}), do: Protocol.error(id, -32600, "invalid request")
   def handle(_), do: :noreply
 
-  defp initialize_result do
+  defp initialize_result(params) do
     %{
-      "protocolVersion" => @protocol_version,
+      "protocolVersion" => protocol_version(params),
       "capabilities" => %{"tools" => %{}},
       "serverInfo" => %{"name" => @name, "version" => @version}
     }
   end
+
+  defp protocol_version(%{"protocolVersion" => version}) when is_binary(version), do: version
+  defp protocol_version(_params), do: @protocol_version
 
   defp call_tool(id, %{"name" => name, "arguments" => args}) when is_map(args) do
     run_tool(id, name, args)

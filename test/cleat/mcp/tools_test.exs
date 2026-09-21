@@ -116,4 +116,217 @@ defmodule Cleat.MCP.ToolsTest do
 
     assert output == ""
   end
+
+  test "apps_create posts the mapped body to /api/v1/apps" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/apps"
+
+      body = Jason.decode!(Req.Test.raw_body(conn))
+      assert body["name"] == "landing"
+      assert body["github_repo"] == "owner/site"
+      assert body["host"] == "landing.example.com"
+      assert body["server_id"] == "3"
+      assert body["runtime"] == "static"
+      assert body["branch"] == "main"
+      assert body["port"] == 4000
+      refute Map.has_key?(body, "slug")
+
+      Req.Test.json(conn, %{"data" => %{"id" => 1, "slug" => "landing"}})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("apps_create", %{
+               "name" => "landing",
+               "repo" => "owner/site",
+               "host" => "landing.example.com",
+               "server" => "3",
+               "runtime" => "static",
+               "branch" => "main",
+               "port" => 4000,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "env_set PUTs vars to the app env endpoint" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PUT"
+      assert conn.request_path == "/api/v1/apps/landing/env"
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{"vars" => %{"FOO" => "bar"}}
+      Req.Test.json(conn, %{"data" => %{"ok" => true}})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("env_set", %{
+               "app" => "landing",
+               "vars" => %{"FOO" => "bar"},
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "env_unset DELETEs one key" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "DELETE"
+      assert conn.request_path == "/api/v1/apps/landing/env/OLD_KEY"
+      Req.Test.json(conn, %{"data" => %{"ok" => true}})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("env_unset", %{
+               "app" => "landing",
+               "key" => "OLD_KEY",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "deploy POSTs the git ref to the app deployments endpoint" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/apps/landing/deployments"
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{"git_ref" => "deploy-cleat"}
+      Req.Test.json(conn, %{"data" => %{"id" => 42, "status" => "queued"}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("deploy", %{
+               "app" => "landing",
+               "ref" => "deploy-cleat",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["id"] == 42
+  end
+
+  test "deploy_logs GETs the deployment by id" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/deployments/42"
+      Req.Test.json(conn, %{"data" => %{"id" => 42, "log" => "Building"}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("deploy_logs", %{
+               "id" => 42,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["log"] == "Building"
+  end
+
+  test "cancel_deploy POSTs to the app cancel endpoint" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/apps/landing/cancel"
+      Req.Test.json(conn, %{"data" => %{"status" => "cancelled"}})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("cancel_deploy", %{
+               "app" => "landing",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "drop uploads a tarball to an existing app" do
+    dir = temp_drop_dir()
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/apps/landing/drops"
+      assert {"content-type", "application/gzip"} in conn.req_headers
+      assert <<0x1F, 0x8B, _::binary>> = Req.Test.raw_body(conn)
+
+      conn
+      |> Plug.Conn.put_status(201)
+      |> Req.Test.json(%{"data" => %{"id" => 7, "status" => "queued"}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "app" => "landing",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["id"] == 7
+  end
+
+  test "drop registers a static app when only server and host are given" do
+    dir = temp_drop_dir()
+    slug = dir |> Path.basename() |> slugify()
+    drops_path = "/api/v1/apps/#{slug}/drops"
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["runtime"] == "static"
+          assert body["server_id"] == "3"
+          assert body["host"] == "landing.example.com"
+          assert body["slug"] == slug
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 5, "slug" => slug}})
+
+        {"POST", ^drops_path} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 8, "status" => "queued"}})
+      end
+    end)
+
+    assert {:ok, text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "3",
+               "host" => "landing.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["id"] == 8
+  end
+
+  test "drop without app or server and host is an actionable error" do
+    dir = temp_drop_dir()
+
+    assert {:error, message} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "drop requires app, or server and host"
+  end
+
+  test "call/2 rejects token '-' (stdin) over MCP" do
+    assert {:error, message} =
+             Tools.call("whoami", %{"panel" => "https://panel.test", "token" => "-"})
+
+    assert message =~ "stdin"
+  end
+
+  defp temp_drop_dir do
+    dir = Path.join(System.tmp_dir!(), "cleat-mcp-drop-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html>hi</html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+    dir
+  end
+
+  defp slugify(name) do
+    name
+    |> String.downcase()
+    |> String.replace(~r/[^a-z0-9]+/, "-")
+    |> String.trim("-")
+  end
 end
