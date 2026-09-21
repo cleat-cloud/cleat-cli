@@ -403,6 +403,141 @@ defmodule Cleat.MCP.ToolsTest do
              })
   end
 
+  test "drop reuses an existing static app with no domain configured" do
+    dir =
+      Path.join(System.tmp_dir!(), "mcp-drop-nodomain-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => slug, "runtime" => "static", "host" => "#{slug}.sites.example.com"}
+            ]
+          })
+
+        {"POST", "/api/v1/apps"} ->
+          flunk("drop must reuse the existing app instead of registering one")
+
+        {"POST", "/api/v1/apps/" <> _} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 83, "status" => "queued"}})
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:ok, text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["id"] == 83
+  end
+
+  test "drop errors when an explicit host differs from the existing static app host" do
+    dir =
+      Path.join(System.tmp_dir!(), "mcp-drop-hostclash-#{System.unique_integer([:positive])}")
+
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "index.html"), "<html></html>")
+    on_exit(fn -> File.rm_rf(dir) end)
+
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"slug" => slug, "runtime" => "static", "host" => "existing.example.com"}
+            ]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "host" => "other.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "existing.example.com"
+    assert message =~ "already exists"
+  end
+
+  test "drop errors when the slug exists with another runtime" do
+    dir = temp_drop_dir()
+    slug = Cleat.Static.site_slug(dir)
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"slug" => slug, "runtime" => "docker", "host" => "x.example.com"}]
+          })
+
+        other ->
+          flunk("unexpected request #{inspect(other)}")
+      end
+    end)
+
+    assert {:error, message} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "5",
+               "host" => "x.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "docker"
+  end
+
+  test "drop does not write to stdout" do
+    dir = temp_drop_dir()
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/apps/landing/drops"
+
+      conn
+      |> Plug.Conn.put_status(201)
+      |> Req.Test.json(%{"data" => %{"id" => 9, "status" => "queued"}})
+    end)
+
+    output =
+      capture_io(fn ->
+        assert {:ok, text} =
+                 Tools.call("drop", %{
+                   "path" => dir,
+                   "app" => "landing",
+                   "panel" => "https://panel.test",
+                   "token" => "tok"
+                 })
+
+        assert Jason.decode!(text)["id"] == 9
+      end)
+
+    assert output == ""
+  end
+
   test "drop errors when a non-static path has no host" do
     dir = Path.join(System.tmp_dir!(), "mcp-drop-build-#{System.unique_integer([:positive])}")
     File.mkdir_p!(dir)

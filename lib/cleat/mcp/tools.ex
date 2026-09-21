@@ -92,10 +92,11 @@ defmodule Cleat.MCP.Tools do
       is_nil(slug) ->
         {:error, "could not derive a slug; pass slug"}
 
+      not present?(args, "host") and not Cleat.Static.detect?(args["path"]) ->
+        {:error, "drop requires a host for a non-static path; pass host or use a static path"}
+
       true ->
-        with {:ok, host} <- drop_host(args, slug) do
-          {:ok, {:register, slug, host, args["server"]}}
-        end
+        {:ok, {:register, slug, args["server"]}}
     end
   end
 
@@ -122,25 +123,32 @@ defmodule Cleat.MCP.Tools do
     end
   end
 
-  defp resolve_drop_app(_client, {:app, app}), do: {:ok, app}
+  defp resolve_drop_app(_client, {:app, app}, _args), do: {:ok, app}
 
-  defp resolve_drop_app(client, {:register, slug, host, server}) do
-    case check_existing(client, slug) do
-      {:error, :exists} -> {:ok, slug}
-      :ok -> register_static_app(client, slug, host, server)
-      {:error, message} -> {:error, message}
+  defp resolve_drop_app(client, {:register, slug, server}, args) do
+    case check_existing(client, slug, args) do
+      {:error, :exists} ->
+        {:ok, slug}
+
+      :ok ->
+        with {:ok, host} <- drop_host(args, slug) do
+          register_static_app(client, slug, host, server)
+        end
+
+      {:error, message} ->
+        {:error, message}
     end
   end
 
-  defp check_existing(client, slug) do
+  defp check_existing(client, slug, args) do
     case Client.list_apps(client) do
       {:ok, body} ->
         case Enum.find(Commands.data(body), &(&1["slug"] == slug)) do
           nil ->
             :ok
 
-          %{"runtime" => "static"} ->
-            {:error, :exists}
+          %{"runtime" => "static"} = app ->
+            reuse_static(app, slug, args)
 
           %{"runtime" => runtime} ->
             {:error, "app #{slug} already exists with runtime #{runtime}"}
@@ -152,6 +160,29 @@ defmodule Cleat.MCP.Tools do
       {:error, message} ->
         {:error, message}
     end
+  end
+
+  # An existing static app can be reused when the user did not pin a host, or
+  # pinned the same host it already has. A conflicting explicit host is an error
+  # so the request is never silently discarded.
+  defp reuse_static(app, slug, args) do
+    if present?(args, "host") do
+      if normalize_host(args["host"]) == normalize_host(app["host"]) do
+        {:error, :exists}
+      else
+        {:error,
+         "app #{slug} already exists as static on #{app["host"]}; drop without " <>
+           "host to reuse it, or use a different slug"}
+      end
+    else
+      {:error, :exists}
+    end
+  end
+
+  defp normalize_host(nil), do: nil
+
+  defp normalize_host(host) when is_binary(host) do
+    host |> String.downcase() |> String.trim_trailing(".")
   end
 
   defp register_static_app(client, slug, host, server) do
@@ -470,17 +501,17 @@ defmodule Cleat.MCP.Tools do
           "required" => ["path"]
         },
         "handler" => fn args ->
-          with {:ok, tarball} <- Cleat.Pack.pack(args["path"]) do
-            try do
-              with {:ok, plan} <- drop_plan(args) do
+          with {:ok, plan} <- drop_plan(args) do
+            with {:ok, tarball} <- Cleat.Pack.pack(args["path"]) do
+              try do
                 with_client(args, fn client ->
-                  with {:ok, app} <- resolve_drop_app(client, plan),
+                  with {:ok, app} <- resolve_drop_app(client, plan, args),
                        {:ok, body} <- Client.create_drop(client, app, tarball, args["ref"]),
                        do: {:ok, data_text(body)}
                 end)
+              after
+                File.rm(tarball)
               end
-            after
-              File.rm(tarball)
             end
           end
         end
