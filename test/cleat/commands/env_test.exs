@@ -71,4 +71,53 @@ defmodule Cleat.Commands.EnvTest do
 
     assert output =~ "--reveal"
   end
+
+  test "sets variables scoped to a branch" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PUT"
+      assert conn.request_path == "/api/v1/apps/my-app/env"
+
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{
+               "vars" => %{"FOO" => "1"},
+               "branch" => "staging"
+             }
+
+      Req.Test.json(conn, %{"data" => []})
+    end)
+
+    assert :ok = Env.run(["set", "my-app", "FOO=1"], Map.put(@conn, :branch, "staging"))
+  end
+
+  test "lists the branch scope of every variable" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.query_string == "branch=staging"
+
+      Req.Test.json(conn, %{
+        "data" => [
+          %{"key" => "SHARED", "value" => "1", "branch" => "*", "sensitive" => false},
+          %{"key" => "BASE_URL", "value" => "https://staging.example.com", "branch" => "staging"}
+        ]
+      })
+    end)
+
+    output =
+      ExUnit.CaptureIO.capture_io(fn ->
+        assert :ok = Env.run(["list", "my-app"], Map.put(@conn, :branch, "staging"))
+      end)
+
+    assert output =~ "BRANCH"
+    assert output =~ "ALL"
+    assert output =~ "staging"
+  end
+
+  test "unsets a key scoped to a branch" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "DELETE"
+      assert conn.request_path == "/api/v1/apps/my-app/env/OLD_KEY"
+      assert conn.query_string == "branch=staging"
+      Plug.Conn.send_resp(conn, 204, "")
+    end)
+
+    assert :ok = Env.run(["unset", "my-app", "OLD_KEY"], Map.put(@conn, :branch, "staging"))
+  end
 end

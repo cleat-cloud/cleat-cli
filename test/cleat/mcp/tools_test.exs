@@ -248,6 +248,60 @@ defmodule Cleat.MCP.ToolsTest do
              })
   end
 
+  test "env_set scopes the vars to a branch" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{
+               "vars" => %{"FOO" => "bar"},
+               "branch" => "staging"
+             }
+
+      Req.Test.json(conn, %{"data" => %{"ok" => true}})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("env_set", %{
+               "app" => "landing",
+               "vars" => %{"FOO" => "bar"},
+               "branch" => "staging",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "env_list filters by branch" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/apps/landing/env"
+      assert conn.query_string == "branch=staging"
+      Req.Test.json(conn, %{"data" => []})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("env_list", %{
+               "app" => "landing",
+               "branch" => "staging",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "env_unset scopes the delete to a branch" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "DELETE"
+      assert conn.query_string == "branch=staging"
+      Req.Test.json(conn, %{"data" => %{"ok" => true}})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("env_unset", %{
+               "app" => "landing",
+               "key" => "OLD_KEY",
+               "branch" => "staging",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
   test "deploy POSTs the git ref to the app deployments endpoint" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "POST"

@@ -6,9 +6,9 @@ defmodule Cleat.Commands.Env do
 
   @usage """
   usage:
-    cleat env list APP [--reveal]
-    cleat env set APP KEY=VALUE [KEY=VALUE ...] [--deploy]
-    cleat env unset APP KEY [--deploy]
+    cleat env list APP [--branch B] [--reveal]
+    cleat env set APP KEY=VALUE [KEY=VALUE ...] [--branch B] [--deploy]
+    cleat env unset APP KEY [--branch B] [--deploy]
   """
 
   def run(["list", app | _rest], opts), do: list(app, opts)
@@ -23,7 +23,7 @@ defmodule Cleat.Commands.Env do
 
   defp list(app, opts) do
     with {:ok, client} <- Commands.client(opts),
-         {:ok, body} <- Client.list_env(client, app, opts[:reveal]) do
+         {:ok, body} <- Client.list_env(client, app, opts[:reveal], opts[:branch]) do
       vars = Commands.data(body)
 
       if opts[:json] do
@@ -31,10 +31,10 @@ defmodule Cleat.Commands.Env do
       else
         rows =
           Enum.map(vars, fn var ->
-            [var["key"], var["value"], sensitive_label(var)]
+            [branch_label(var["branch"]), var["key"], var["value"], sensitive_label(var)]
           end)
 
-        Output.table(rows, ["KEY", "VALUE", "SENSITIVE"])
+        Output.table(rows, ["BRANCH", "KEY", "VALUE", "SENSITIVE"])
 
         if opts[:reveal] != true and Enum.any?(vars, & &1["sensitive"]) do
           Output.info("")
@@ -49,19 +49,39 @@ defmodule Cleat.Commands.Env do
   defp set(app, pairs, opts) do
     with {:ok, vars} <- parse_pairs(pairs),
          {:ok, client} <- Commands.client(opts),
-         {:ok, _body} <- Client.set_env(client, app, %{vars: vars}) do
-      Output.success("Set #{map_size(vars)} variable(s) on #{app}")
+         {:ok, _body} <- Client.set_env(client, app, set_attrs(vars, opts)) do
+      Output.success("Set #{map_size(vars)} variable(s) on #{app}#{scope_suffix(opts)}")
       maybe_deploy(app, opts)
     end
   end
 
   defp unset(app, key, opts) do
     with {:ok, client} <- Commands.client(opts),
-         {:ok, _body} <- Client.delete_env(client, app, key) do
-      Output.success("Unset #{key} on #{app}")
+         {:ok, _body} <- Client.delete_env(client, app, key, opts[:branch]) do
+      Output.success("Unset #{key} on #{app}#{scope_suffix(opts)}")
       maybe_deploy(app, opts)
     end
   end
+
+  defp set_attrs(vars, opts) do
+    if opts[:branch] in [nil, ""] do
+      %{vars: vars}
+    else
+      %{vars: vars, branch: opts[:branch]}
+    end
+  end
+
+  defp scope_suffix(opts) do
+    case opts[:branch] do
+      branch when branch in [nil, ""] -> " (all branches)"
+      branch -> " (branch #{branch})"
+    end
+  end
+
+  defp branch_label("*"), do: "ALL"
+  defp branch_label(nil), do: "ALL"
+  defp branch_label(""), do: "ALL"
+  defp branch_label(branch), do: branch
 
   defp maybe_deploy(app, opts) do
     if opts[:deploy] do

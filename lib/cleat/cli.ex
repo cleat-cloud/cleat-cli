@@ -39,6 +39,7 @@ defmodule Cleat.CLI do
     reveal: :boolean,
     deploy: :boolean,
     auto_deploy: :boolean,
+    branch: :string,
     server: :string,
     repo: :string,
     app: :string,
@@ -192,9 +193,11 @@ defmodule Cleat.CLI do
                                             Host journal (all units, or one with --unit)
 
     Environment
-      env list APP [--reveal]               List env vars (secrets masked)
-      env set APP K=V [K=V ...] [--deploy]  Upsert env vars
-      env unset APP KEY [--deploy]          Delete an env var
+      env list APP [--branch B] [--reveal]   List env vars (secrets masked)
+      env set APP K=V [K=V ...] \\
+        [--branch B] [--deploy]             Upsert env vars (default: all branches)
+      env unset APP KEY [--branch B] \\
+        [--deploy]                          Delete an env var (default: all branches)
 
     Deployments
       deploy APP [--ref BRANCH] [--watch]   Trigger a deploy (id or slug)
