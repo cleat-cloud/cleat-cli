@@ -103,16 +103,22 @@ defmodule Cleat.Client do
 
   def get_deployment(client, id), do: request(client, :get, "/api/v1/deployments/#{id}")
 
-  def list_env(client, app, reveal? \\ false) do
-    opts = if reveal?, do: [params: [reveal: true]], else: []
+  def list_env(client, app, reveal? \\ false, branch \\ nil) do
+    params =
+      [reveal: reveal?, branch: branch]
+      |> Enum.reject(fn {_key, value} -> value in [nil, false] end)
+
+    opts = if params == [], do: [], else: [params: params]
     request(client, :get, "/api/v1/apps/#{app}/env", opts)
   end
 
   def set_env(client, app, attrs),
     do: request(client, :put, "/api/v1/apps/#{app}/env", json: attrs)
 
-  def delete_env(client, app, key),
-    do: request(client, :delete, "/api/v1/apps/#{app}/env/#{key}")
+  def delete_env(client, app, key, branch \\ nil) do
+    opts = if branch in [nil, ""], do: [], else: [params: [branch: branch]]
+    request(client, :delete, "/api/v1/apps/#{app}/env/#{key}", opts)
+  end
 
   defp request(%__MODULE__{} = client, method, path, opts \\ []) do
     request = build(client)
