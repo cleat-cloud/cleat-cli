@@ -39,6 +39,7 @@ defmodule Cleat.CLI do
     reveal: :boolean,
     deploy: :boolean,
     auto_deploy: :boolean,
+    indexable: :boolean,
     branch: :string,
     server: :string,
     repo: :string,
@@ -185,8 +186,9 @@ defmodule Cleat.CLI do
         --host H --server ID [--runtime R]   Create an app
       apps update APP [--branch B] \\
         [--auto-deploy|--no-auto-deploy] \\
+        [--indexable|--no-indexable] \\
         [--host H] [--port N] [--repo O/R] \\
-        [--runtime R]                       Edit repo / branch / auto-deploy / host / port / runtime
+        [--runtime R]                       Edit repo / branch / auto-deploy / indexing / host / port / runtime
       apps logs APP [--tail N] [--since S] [--grep T] [--follow]
                                             Runtime logs (systemd unit)
       servers logs ID [--unit U] [--tail N] [--since S] [--grep T] [--follow]
