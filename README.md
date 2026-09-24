@@ -2,8 +2,8 @@
 
 `cleat` is the command-line client for [Cleat](https://github.com/cleat-cloud/cleat-deploy),
 a self-hosted PaaS that deploys Phoenix/Elixir, Go, Node (Next.js / TanStack
-Start), Ruby on Rails and static apps to Hetzner Cloud and AWS Lightsail over
-SSH.
+Start), Ruby on Rails, Rust (Loco) and static apps to Hetzner Cloud and AWS
+Lightsail over SSH.
 
 It talks to the panel's JSON API (`/api/v1`) to list servers and apps, manage env
 vars, trigger deploys, and watch build and runtime logs.
@@ -175,6 +175,20 @@ Ruby version resolution order: `ruby_version` → `.ruby-version` → the Gemfil
 `ruby` directive → 3.3.6. Start command: `start_command` → `bundle exec puma -C
 config/puma.rb` → `bundle exec puma -b tcp://0.0.0.0:$PORT`.
 
+For Rust / Loco, `cleat init` detects a `Cargo.toml` and picks the `rust`
+runtime. The panel installs rustup, runs `cargo build --release`, publishes
+`bin/server` plus `config/`/`assets/`/`frontend/`, and starts a systemd unit.
+Loco apps (`loco-rs` or `config/production.yaml`) use `./bin/server start` and
+`./bin/server db migrate`. Set `DATABASE_URL` and `JWT_SECRET` as panel env
+vars.
+
+```json
+{
+  "runtime": "rust",
+  "start_command": "./bin/server start"
+}
+```
+
 Commit the manifest so the panel picks it up on the next deploy.
 
 ### Logs
@@ -222,7 +236,7 @@ Register and deploy in one shot. If the repo is unknown, pass `--server` and
 `--host`; the app is created with sane defaults (slug from the repo name). The
 runtime is detected from the local project the same way `cleat init` does, so a
 Next.js / TanStack Start repo registers as `node`; override it with `--runtime`
-(`phoenix`, `golang`, `node`, `rails` or `static`):
+(`phoenix`, `golang`, `node`, `rails`, `rust` or `static`):
 
 ```bash
 cleat deploy --repo owner/repo --server 3 --host repo.example.com --watch

@@ -63,6 +63,7 @@ defmodule Cleat.Commands.Init do
   defp default_release_name("static"), do: nil
   defp default_release_name("node"), do: nil
   defp default_release_name("rails"), do: nil
+  defp default_release_name("rust"), do: nil
   defp default_release_name("phoenix"), do: mix_app()
 
   defp mix_app do
