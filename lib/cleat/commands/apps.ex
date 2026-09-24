@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Apps do
 
   alias Cleat.{Client, Commands, Output, Runtime}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--host H] [--port N] [--repo owner/repo] [--runtime R] | cleat apps delete APP --yes | cleat apps logs APP [--tail N] [--since S] [--grep T] [--follow]"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--indexable|--no-indexable] [--host H] [--port N] [--repo owner/repo] [--runtime R] | cleat apps delete APP --yes | cleat apps logs APP [--tail N] [--since S] [--grep T] [--follow]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
@@ -61,6 +61,7 @@ defmodule Cleat.Commands.Apps do
             ["Port", data["port"]],
             ["Runtime", data["runtime"]],
             ["Auto deploy", data["auto_deploy"]],
+            ["Indexable", data["indexable"]],
             ["Server", server_name(data)],
             ["Systemd unit", data["systemd_unit"]],
             ["Release path", data["release_path"]],
@@ -122,6 +123,7 @@ defmodule Cleat.Commands.Apps do
       %{}
       |> maybe_put_branch(opts)
       |> maybe_put_auto_deploy(opts)
+      |> maybe_put_indexable(opts)
       |> maybe_put_port(opts)
       |> maybe_put_repo(opts)
       |> maybe_put_runtime(opts)
@@ -133,7 +135,7 @@ defmodule Cleat.Commands.Apps do
 
       attrs when map_size(attrs) == 0 ->
         {:error,
-         "nothing to update: pass --branch, --auto-deploy, --host, --port, --repo or --runtime"}
+         "nothing to update: pass --branch, --auto-deploy, --indexable, --host, --port, --repo or --runtime"}
 
       attrs ->
         with {:ok, client} <- Commands.client(opts),
@@ -141,7 +143,7 @@ defmodule Cleat.Commands.Apps do
           data = Commands.data(body)
 
           Output.success(
-            "Updated #{data["slug"]} (repo=#{data["github_repo"]}, branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]}, host=#{data["host"]}, port=#{data["port"]}, runtime=#{data["runtime"]})"
+            "Updated #{data["slug"]} (repo=#{data["github_repo"]}, branch=#{data["branch"]}, auto_deploy=#{data["auto_deploy"]}, indexable=#{data["indexable"]}, host=#{data["host"]}, port=#{data["port"]}, runtime=#{data["runtime"]})"
           )
 
           :ok
@@ -251,6 +253,16 @@ defmodule Cleat.Commands.Apps do
 
     if Map.has_key?(opts, :auto_deploy) do
       Map.put(attrs, "auto_deploy", opts[:auto_deploy])
+    else
+      attrs
+    end
+  end
+
+  defp maybe_put_indexable(attrs, opts) do
+    opts = Map.new(opts)
+
+    if Map.has_key?(opts, :indexable) do
+      Map.put(attrs, "indexable", opts[:indexable])
     else
       attrs
     end

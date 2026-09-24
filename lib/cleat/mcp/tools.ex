@@ -334,7 +334,8 @@ defmodule Cleat.MCP.Tools do
       },
       %{
         "name" => "apps_update",
-        "description" => "Edit an app (branch, host, port, repo, runtime, auto_deploy)",
+        "description" =>
+          "Edit an app (branch, host, port, repo, runtime, auto_deploy, indexable)",
         "inputSchema" => %{
           "type" => "object",
           "properties" => %{
@@ -345,6 +346,10 @@ defmodule Cleat.MCP.Tools do
             "repo" => %{"type" => "string"},
             "runtime" => %{"type" => "string"},
             "auto_deploy" => %{"type" => "boolean"},
+            "indexable" => %{
+              "type" => "boolean",
+              "description" => "Allow search engines to index a static site"
+            },
             "panel" => @panel,
             "token" => @token
           },
@@ -358,12 +363,14 @@ defmodule Cleat.MCP.Tools do
               "port" => args["port"],
               "github_repo" => args["repo"],
               "runtime" => args["runtime"],
-              "auto_deploy" => args["auto_deploy"]
+              "auto_deploy" => args["auto_deploy"],
+              "indexable" => args["indexable"]
             }
             |> Map.reject(fn {_k, v} -> is_nil(v) end)
 
           if attrs == %{} do
-            {:error, "nothing to update: pass branch, host, port, repo, runtime or auto_deploy"}
+            {:error,
+             "nothing to update: pass branch, host, port, repo, runtime, auto_deploy or indexable"}
           else
             with_client(args, fn client ->
               with {:ok, body} <- Client.update_app(client, args["app"], attrs),
