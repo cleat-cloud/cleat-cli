@@ -1,6 +1,6 @@
 # cleat-cli
 
-`cleat` is the command-line client for [Cleat](https://github.com/puppe1990/cleat-deploy),
+`cleat` is the command-line client for [Cleat](https://github.com/cleat-cloud/cleat-deploy),
 a self-hosted PaaS that deploys Phoenix/Elixir, Go, Node (Next.js / TanStack
 Start), Ruby on Rails and static apps to Hetzner Cloud and AWS Lightsail over
 SSH.
@@ -13,7 +13,7 @@ vars, trigger deploys, and watch build and runtime logs.
 Requires Elixir 1.15+ / OTP 26+.
 
 ```bash
-git clone https://github.com/puppe1990/cleat-cli.git
+git clone https://github.com/cleat-cloud/cleat-cli.git
 cd cleat-cli
 mix deps.get
 mix install
