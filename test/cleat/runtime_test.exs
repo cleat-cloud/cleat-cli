@@ -59,6 +59,27 @@ defmodule Cleat.RuntimeTest do
     assert Runtime.detect() == "rails"
   end
 
+  test "detects a Loco / Cargo project as rust" do
+    File.write!(
+      "Cargo.toml",
+      """
+      [package]
+      name = "hello_loco"
+      version = "0.1.0"
+
+      [dependencies]
+      loco-rs = "0.16"
+      """
+    )
+
+    assert Runtime.detect() == "rust"
+  end
+
+  test "normalizes rust as a valid runtime" do
+    assert Runtime.normalize("rust") == "rust"
+    assert Runtime.normalize("RUST") == "rust"
+  end
+
   test "detects a bare package.json as static" do
     File.write!("package.json", ~s({"name":"site"}))
 

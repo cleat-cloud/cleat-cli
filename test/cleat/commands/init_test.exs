@@ -114,6 +114,25 @@ defmodule Cleat.Commands.InitTest do
     assert read_manifest()["runtime"] == "node"
   end
 
+  test "detects a Loco project as rust" do
+    File.write!(
+      "Cargo.toml",
+      """
+      [package]
+      name = "hello_loco"
+      version = "0.1.0"
+
+      [dependencies]
+      loco-rs = "0.16"
+      """
+    )
+
+    assert :ok = Init.run(%{})
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "rust"
+  end
+
   test "detects a Rails project as rails" do
     File.write!("Gemfile", ~s(source "https://rubygems.org"\ngem "rails", "~> 7.1"\n))
     File.mkdir_p!("config")
