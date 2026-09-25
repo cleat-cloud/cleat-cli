@@ -13,6 +13,13 @@ defmodule Cleat.MCP.Tools do
   @token %{"type" => "string", "description" => "Bearer token override"}
   @app %{"type" => "string", "description" => "App id or slug"}
 
+  @runtime_apt_packages %{
+    "type" => "array",
+    "items" => %{"type" => "string"},
+    "description" =>
+      "apt packages to install on the VM at deploy. Alternative: commit .cleat_deploy/runtime-packages (or .cleat_deploy/post-install.sh) in the repo"
+  }
+
   def list, do: Enum.map(tools(), &Map.take(&1, ["name", "description", "inputSchema"]))
 
   def call(name, args) when is_map(args) do
@@ -296,7 +303,8 @@ defmodule Cleat.MCP.Tools do
       },
       %{
         "name" => "apps_create",
-        "description" => "Create an app",
+        "description" =>
+          "Create an app. runtime_apt_packages installs apt deps on the VM; alternatively commit .cleat_deploy/runtime-packages",
         "inputSchema" => %{
           "type" => "object",
           "properties" => %{
@@ -308,6 +316,7 @@ defmodule Cleat.MCP.Tools do
             "slug" => %{"type" => "string"},
             "branch" => %{"type" => "string"},
             "port" => %{"type" => "integer"},
+            "runtime_apt_packages" => @runtime_apt_packages,
             "panel" => @panel,
             "token" => @token
           },
@@ -323,7 +332,8 @@ defmodule Cleat.MCP.Tools do
               "slug" => args["slug"],
               "branch" => args["branch"],
               "port" => args["port"],
-              "runtime" => args["runtime"]
+              "runtime" => args["runtime"],
+              "runtime_apt_packages" => args["runtime_apt_packages"]
             }
             |> Map.reject(fn {_k, v} -> is_nil(v) or v == "" end)
 
@@ -335,7 +345,7 @@ defmodule Cleat.MCP.Tools do
       %{
         "name" => "apps_update",
         "description" =>
-          "Edit an app (branch, host, port, repo, runtime, auto_deploy, indexable)",
+          "Edit an app (branch, host, port, repo, runtime, auto_deploy, indexable, runtime_apt_packages). Alternative for apt deps: .cleat_deploy/runtime-packages",
         "inputSchema" => %{
           "type" => "object",
           "properties" => %{
@@ -350,6 +360,7 @@ defmodule Cleat.MCP.Tools do
               "type" => "boolean",
               "description" => "Allow search engines to index a static site"
             },
+            "runtime_apt_packages" => @runtime_apt_packages,
             "panel" => @panel,
             "token" => @token
           },
@@ -364,13 +375,14 @@ defmodule Cleat.MCP.Tools do
               "github_repo" => args["repo"],
               "runtime" => args["runtime"],
               "auto_deploy" => args["auto_deploy"],
-              "indexable" => args["indexable"]
+              "indexable" => args["indexable"],
+              "runtime_apt_packages" => args["runtime_apt_packages"]
             }
             |> Map.reject(fn {_k, v} -> is_nil(v) end)
 
           if attrs == %{} do
             {:error,
-             "nothing to update: pass branch, host, port, repo, runtime, auto_deploy or indexable"}
+             "nothing to update: pass branch, host, port, repo, runtime, auto_deploy, indexable or runtime_apt_packages"}
           else
             with_client(args, fn client ->
               with {:ok, body} <- Client.update_app(client, args["app"], attrs),

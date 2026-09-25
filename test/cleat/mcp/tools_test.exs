@@ -215,6 +215,59 @@ defmodule Cleat.MCP.ToolsTest do
              })
   end
 
+  test "apps_create posts runtime_apt_packages" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      body = Jason.decode!(Req.Test.raw_body(conn))
+      assert body["runtime_apt_packages"] == ["ffmpeg", "webp"]
+      Req.Test.json(conn, %{"data" => %{"id" => 1, "slug" => "gowa"}})
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("apps_create", %{
+               "name" => "gowa",
+               "repo" => "owner/gowa",
+               "host" => "gowa.example.com",
+               "server" => "5",
+               "runtime_apt_packages" => ["ffmpeg", "webp"],
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "apps_update patches runtime_apt_packages" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+      assert conn.request_path == "/api/v1/apps/gowa"
+
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{
+               "runtime_apt_packages" => ["ffmpeg", "webp"]
+             }
+
+      Req.Test.json(conn, %{
+        "data" => %{"slug" => "gowa", "runtime_apt_packages" => ["ffmpeg", "webp"]}
+      })
+    end)
+
+    assert {:ok, _text} =
+             Tools.call("apps_update", %{
+               "app" => "gowa",
+               "runtime_apt_packages" => ["ffmpeg", "webp"],
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+  end
+
+  test "apps_create and apps_update schemas document runtime_apt_packages" do
+    for name <- ["apps_create", "apps_update"] do
+      tool = Enum.find(Tools.list(), &(&1["name"] == name))
+      field = tool["inputSchema"]["properties"]["runtime_apt_packages"]
+      assert field["type"] == "array"
+      assert field["items"] == %{"type" => "string"}
+      assert field["description"] =~ ".cleat_deploy/runtime-packages"
+    end
+  end
+
   test "env_set PUTs vars to the app env endpoint" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "PUT"

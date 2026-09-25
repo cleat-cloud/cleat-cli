@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Apps do
 
   alias Cleat.{Client, Commands, Output, Runtime}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--indexable|--no-indexable] [--host H] [--port N] [--repo owner/repo] [--runtime R] | cleat apps delete APP --yes | cleat apps logs APP [--tail N] [--since S] [--grep T] [--follow]"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID [--apt pkg,pkg] | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--indexable|--no-indexable] [--host H] [--port N] [--repo owner/repo] [--runtime R] [--apt pkg,pkg] | cleat apps delete APP --yes | cleat apps logs APP [--tail N] [--since S] [--grep T] [--follow]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
@@ -60,6 +60,7 @@ defmodule Cleat.Commands.Apps do
             ["Host", data["host"]],
             ["Port", data["port"]],
             ["Runtime", data["runtime"]],
+            ["Apt packages", format_apt(data["runtime_apt_packages"])],
             ["Auto deploy", data["auto_deploy"]],
             ["Indexable", data["indexable"]],
             ["Server", server_name(data)],
@@ -87,16 +88,18 @@ defmodule Cleat.Commands.Apps do
             {:error, :missing_host} -> nil
           end
 
-        attrs = %{
-          "name" => opts[:name],
-          "slug" => opts[:slug] || Cleat.Slug.from_name(opts[:name]),
-          "github_repo" => opts[:repo],
-          "branch" => opts[:branch] || "main",
-          "host" => host,
-          "port" => opts[:port] || 4000,
-          "runtime" => runtime(opts),
-          "server_id" => opts[:server]
-        }
+        attrs =
+          %{
+            "name" => opts[:name],
+            "slug" => opts[:slug] || Cleat.Slug.from_name(opts[:name]),
+            "github_repo" => opts[:repo],
+            "branch" => opts[:branch] || "main",
+            "host" => host,
+            "port" => opts[:port] || 4000,
+            "runtime" => runtime(opts),
+            "server_id" => opts[:server]
+          }
+          |> maybe_put_apt(opts)
 
         case missing(attrs, [
                {"name", "--name"},
@@ -127,6 +130,7 @@ defmodule Cleat.Commands.Apps do
       |> maybe_put_port(opts)
       |> maybe_put_repo(opts)
       |> maybe_put_runtime(opts)
+      |> maybe_put_apt(opts)
       |> with_host(opts)
 
     case attrs do
@@ -135,7 +139,7 @@ defmodule Cleat.Commands.Apps do
 
       attrs when map_size(attrs) == 0 ->
         {:error,
-         "nothing to update: pass --branch, --auto-deploy, --indexable, --host, --port, --repo or --runtime"}
+         "nothing to update: pass --branch, --auto-deploy, --indexable, --host, --port, --repo, --runtime or --apt"}
 
       attrs ->
         with {:ok, client} <- Commands.client(opts),
@@ -288,6 +292,29 @@ defmodule Cleat.Commands.Apps do
       value -> Map.put(attrs, "runtime", Runtime.normalize(value) || value)
     end
   end
+
+  defp maybe_put_apt(attrs, opts) do
+    case apt_packages(opts[:apt]) do
+      nil -> attrs
+      packages -> Map.put(attrs, "runtime_apt_packages", packages)
+    end
+  end
+
+  defp apt_packages(nil), do: nil
+
+  defp apt_packages(packages) when is_list(packages), do: packages
+
+  defp apt_packages(packages) when is_binary(packages) do
+    packages
+    |> String.split(",", trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  defp format_apt(packages) when is_list(packages) and packages != [],
+    do: Enum.join(packages, ", ")
+
+  defp format_apt(_), do: "—"
 
   defp missing(attrs, required) do
     required

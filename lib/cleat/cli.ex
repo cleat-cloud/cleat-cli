@@ -57,6 +57,7 @@ defmodule Cleat.CLI do
     mode: :string,
     slug: :string,
     runtime: :string,
+    apt: :string,
     binaries: :string,
     port: :integer,
     yes: :boolean,
@@ -183,12 +184,13 @@ defmodule Cleat.CLI do
       apps list                             List apps
       apps show APP                         Show one app (id or slug)
       apps create --name N --repo O/R \\
-        --host H --server ID [--runtime R]   Create an app
+        --host H --server ID [--runtime R] [--apt pkg,pkg]
+                                            Create an app
       apps update APP [--branch B] \\
         [--auto-deploy|--no-auto-deploy] \\
         [--indexable|--no-indexable] \\
         [--host H] [--port N] [--repo O/R] \\
-        [--runtime R]                       Edit repo / branch / auto-deploy / indexing / host / port / runtime
+        [--runtime R] [--apt pkg,pkg]       Edit repo / branch / auto-deploy / indexing / host / port / runtime / apt packages
       apps logs APP [--tail N] [--since S] [--grep T] [--follow]
                                             Runtime logs (systemd unit)
       servers logs ID [--unit U] [--tail N] [--since S] [--grep T] [--follow]
