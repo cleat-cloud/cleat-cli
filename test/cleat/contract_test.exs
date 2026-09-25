@@ -19,9 +19,9 @@ defmodule Cleat.ContractTest do
     "server" =>
       ~w(id name host_ip ssh_user region provider deploy_mode instance_status bundle_name cpu_count ram_mb disk_gb),
     "deployment" =>
-      ~w(id app_id git_sha git_ref status triggered_by started_at finished_at inserted_at updated_at),
+      ~w(id app_id git_sha git_ref status triggered_by started_at finished_at inserted_at updated_at wait_reason),
     "deployment_log" =>
-      ~w(id app_id git_sha git_ref status triggered_by started_at finished_at inserted_at updated_at log),
+      ~w(id app_id git_sha git_ref status triggered_by started_at finished_at inserted_at updated_at wait_reason log),
     "env_var" => ~w(key value branch sensitive revealed),
     "user" => ~w(id email),
     "tenant" => ~w(id name slug),

@@ -21,6 +21,7 @@ defmodule Cleat.Commands.Status do
                 [
                   deployment["id"],
                   deployment["status"],
+                  wait_reason(deployment),
                   deployment["git_ref"] || "—",
                   deployment["git_sha"],
                   deployment["triggered_by"],
@@ -28,11 +29,15 @@ defmodule Cleat.Commands.Status do
                 ]
               end)
 
-            Output.table(rows, ["ID", "STATUS", "REF", "SHA", "TRIGGER", "CREATED AT"])
+            Output.table(rows, ["ID", "STATUS", "WAIT", "REF", "SHA", "TRIGGER", "CREATED AT"])
         end
       end
 
       :ok
     end
   end
+
+  defp wait_reason(%{"wait_reason" => "app_fifo"}), do: "app FIFO"
+  defp wait_reason(%{"wait_reason" => "server_cap"}), do: "2-build cap"
+  defp wait_reason(_deployment), do: "—"
 end
