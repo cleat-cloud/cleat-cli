@@ -131,6 +131,57 @@ defmodule Cleat.Commands.AppsTest do
     assert :ok = Apps.run(["update", "my-app"], Map.put(@conn, :runtime, "node"))
   end
 
+  test "updates runtime_apt_packages from --apt" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{
+               "runtime_apt_packages" => ["ffmpeg", "webp"]
+             }
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "slug" => "my-app",
+          "runtime_apt_packages" => ["ffmpeg", "webp"],
+          "github_repo" => "owner/app",
+          "branch" => "main",
+          "auto_deploy" => true,
+          "indexable" => false,
+          "host" => "my-app.example.com",
+          "port" => 4000,
+          "runtime" => "node"
+        }
+      })
+    end)
+
+    assert :ok = Apps.run(["update", "my-app"], Map.put(@conn, :apt, "ffmpeg,webp"))
+  end
+
+  test "creates an app with --apt packages" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert Jason.decode!(Req.Test.raw_body(conn))["runtime_apt_packages"] == ["ffmpeg", "webp"]
+
+      conn
+      |> Plug.Conn.put_status(201)
+      |> Req.Test.json(%{"data" => %{"id" => 9, "slug" => "gowa"}})
+    end)
+
+    assert :ok =
+             Apps.run(
+               ["create"],
+               %{
+                 panel: "https://panel.test",
+                 token: "tok",
+                 name: "gowa",
+                 repo: "owner/gowa",
+                 host: "gowa.example.com",
+                 server: "5",
+                 apt: "ffmpeg, webp"
+               }
+             )
+  end
+
   test "creates an app using the detected runtime" do
     dir =
       Path.join(System.tmp_dir!(), "cleat-apps-proj-#{System.unique_integer([:positive])}")
