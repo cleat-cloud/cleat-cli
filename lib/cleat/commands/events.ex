@@ -10,20 +10,20 @@ defmodule Cleat.Commands.Events do
 
   alias Cleat.{Client, Commands, Output}
 
-  @usage "usage: cleat events [APP] [--server ID] [--unit U] [--query TEXT] [--severity LEVEL] [--min-severity LEVEL] [--since S] [--until S] [--limit N] [--json]"
+  @usage "usage: cleat events [APP] [--server ID] [--unit U] [--query TEXT] [--severity LEVEL] [--min-severity LEVEL] [--since S] [--until S] [--limit N] [--release SHA] [--environment B] [--group] [--json]"
 
   @severities ~w(emerg alert crit err warning notice info debug)
 
   def run(args, opts) do
     with {:ok, params} <- params(args, opts),
          {:ok, client} <- Commands.client(opts),
-         {:ok, body} <- Client.search_logs(client, params) do
-      events = Commands.data(body)
+         {:ok, body} <- fetch(client, params, opts) do
+      rows = Commands.data(body)
 
-      if opts[:json] do
-        Output.json(events)
-      else
-        print(events)
+      cond do
+        opts[:json] -> Output.json(rows)
+        opts[:group] -> print_groups(rows)
+        true -> print(rows)
       end
 
       :ok
@@ -43,7 +43,9 @@ defmodule Cleat.Commands.Events do
         "min_severity" => min_severity,
         "since" => opts[:since],
         "until" => opts[:until],
-        "limit" => opts[:limit]
+        "limit" => opts[:limit],
+        "release" => opts[:release],
+        "environment" => opts[:environment]
       }
 
       {:ok, params |> Enum.reject(fn {_key, value} -> value in [nil, ""] end) |> Map.new()}
@@ -64,6 +66,14 @@ defmodule Cleat.Commands.Events do
     end
   end
 
+  defp fetch(client, params, opts) do
+    if opts[:group] do
+      Client.search_log_groups(client, params)
+    else
+      Client.search_logs(client, params)
+    end
+  end
+
   defp print([]), do: Output.info("No log events matched.")
 
   defp print(events) do
@@ -79,6 +89,22 @@ defmodule Cleat.Commands.Events do
       end)
 
     Output.table(rows, ["TIME", "SEV", "APP", "UNIT", "MESSAGE"])
+  end
+
+  defp print_groups([]), do: Output.info("No error groups matched.")
+
+  defp print_groups(groups) do
+    rows =
+      Enum.map(groups, fn group ->
+        [
+          group["count"],
+          group["severity"],
+          group["last_seen_at"] || "—",
+          message(group["sample"])
+        ]
+      end)
+
+    Output.table(rows, ["COUNT", "SEV", "LAST", "SAMPLE"])
   end
 
   defp timestamp(value) when is_binary(value) do

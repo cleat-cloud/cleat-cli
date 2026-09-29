@@ -71,6 +71,9 @@ defmodule Cleat.CLI do
     min_severity: :string,
     until: :string,
     limit: :integer,
+    release: :string,
+    environment: :string,
+    group: :boolean,
     release_name: :string,
     systemd_unit: :string,
     release_path: :string,
@@ -207,7 +210,9 @@ defmodule Cleat.CLI do
       events [APP] [--server ID] [--unit U] \\
         [--query TEXT] [-q TEXT] \\
         [--severity LEVEL] [--min-severity LEVEL] \\
-        [--since S] [--until S] [--limit N]  Search collected log events
+        [--since S] [--until S] [--limit N] \\
+        [--release SHA] [--environment B] [--group]
+                                             Search collected log events
                                              (levels: emerg alert crit err
                                              warning notice info debug)
 

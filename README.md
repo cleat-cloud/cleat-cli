@@ -223,6 +223,9 @@ cleat events --query "timeout" --limit 50
 
 # exact level, specific unit, machine-readable
 cleat events --app landing --severity warning --unit caddy --json
+
+# filter by release sha and cluster similar errors
+cleat events my-app --release abc123 --group
 ```
 
 Levels: `emerg`, `alert`, `crit`, `err`, `warning`, `notice`, `info`, `debug`.

@@ -60,6 +60,17 @@ defmodule Cleat.Commands.EventsTest do
     assert message =~ "invalid --severity"
   end
 
+  test "group mode hits /logs/groups" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/logs/groups"
+      Req.Test.json(conn, %{"data" => [%{"count" => 3, "severity" => "err", "sample" => "boom"}]})
+    end)
+
+    output = capture_io(fn -> assert :ok = Events.run([], Map.put(@conn, :group, true)) end)
+    assert output =~ "boom"
+    assert output =~ "err"
+  end
+
   test "json mode prints the raw events" do
     Req.Test.stub(__MODULE__, fn conn ->
       Req.Test.json(conn, %{"data" => [event("info", "hi")]})

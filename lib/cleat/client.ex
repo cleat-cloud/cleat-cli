@@ -76,6 +76,13 @@ defmodule Cleat.Client do
     request(client, :get, "/api/v1/logs", params: params)
   end
 
+  @doc """
+  Groups similar collected errors (`GET /api/v1/logs/groups`).
+  """
+  def search_log_groups(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :get, "/api/v1/logs/groups", params: params)
+  end
+
   defp log_params(opts) do
     %{
       "tail" => opts[:tail],
