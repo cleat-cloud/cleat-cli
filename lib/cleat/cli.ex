@@ -11,6 +11,7 @@ defmodule Cleat.CLI do
     Deploy,
     Drop,
     Env,
+    Events,
     Init,
     Login,
     Logout,
@@ -65,6 +66,11 @@ defmodule Cleat.CLI do
     since: :string,
     grep: :string,
     unit: :string,
+    query: :string,
+    severity: :string,
+    min_severity: :string,
+    until: :string,
+    limit: :integer,
     release_name: :string,
     systemd_unit: :string,
     release_path: :string,
@@ -81,7 +87,7 @@ defmodule Cleat.CLI do
     version: :boolean
   ]
 
-  @aliases [p: :panel, h: :help, v: :version]
+  @aliases [p: :panel, h: :help, v: :version, q: :query]
 
   def main(argv) do
     {opts, args, invalid} = OptionParser.parse(argv, strict: @switches, aliases: @aliases)
@@ -114,6 +120,7 @@ defmodule Cleat.CLI do
   defp dispatch(["servers" | rest], opts), do: run(Servers.run(rest, opts))
   defp dispatch(["apps" | rest], opts), do: run(Apps.run(rest, opts))
   defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
+  defp dispatch(["events" | rest], opts), do: run(Events.run(rest, opts))
 
   defp dispatch(["deploy" | rest], opts), do: run(Deploy.run(List.first(rest), opts))
   defp dispatch(["drop" | rest], opts), do: run(Drop.run(rest, opts))
@@ -195,6 +202,14 @@ defmodule Cleat.CLI do
                                             Runtime logs (systemd unit)
       servers logs ID [--unit U] [--tail N] [--since S] [--grep T] [--follow]
                                             Host journal (all units, or one with --unit)
+
+    Observability
+      events [APP] [--server ID] [--unit U] \\
+        [--query TEXT] [-q TEXT] \\
+        [--severity LEVEL] [--min-severity LEVEL] \\
+        [--since S] [--until S] [--limit N]  Search collected log events
+                                             (levels: emerg alert crit err
+                                             warning notice info debug)
 
     Environment
       env list APP [--branch B] [--reveal]   List env vars (secrets masked)
