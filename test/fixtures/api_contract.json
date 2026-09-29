@@ -54,6 +54,26 @@
     "sensitive",
     "revealed"
   ],
+  "log_event": [
+    "id",
+    "app_id",
+    "server_id",
+    "deployment_id",
+    "unit",
+    "source",
+    "severity",
+    "message",
+    "environment",
+    "fingerprint",
+    "occurred_at"
+  ],
+  "log_group": [
+    "fingerprint",
+    "severity",
+    "count",
+    "sample",
+    "last_seen_at"
+  ],
   "me": [
     "user",
     "tenant",

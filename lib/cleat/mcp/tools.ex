@@ -275,6 +275,65 @@ defmodule Cleat.MCP.Tools do
         end
       },
       %{
+        "name" => "logs_search",
+        "description" =>
+          "Search collected log events by app, server, unit, text, severity, release, environment and time window. Set group=true for clustered errors.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "server" => %{"type" => "string", "description" => "Server id"},
+            "unit" => %{"type" => "string"},
+            "q" => %{"type" => "string", "description" => "Case-insensitive substring"},
+            "severity" => %{
+              "type" => "string",
+              "description" => "Exact level: emerg alert crit err warning notice info debug"
+            },
+            "min_severity" => %{
+              "type" => "string",
+              "description" => "Include this level and above"
+            },
+            "release" => %{"type" => "string", "description" => "Deployment id or git sha prefix"},
+            "environment" => %{"type" => "string", "description" => "App branch / environment"},
+            "group" => %{"type" => "boolean", "description" => "Cluster similar errors"},
+            "since" => %{"type" => "string", "description" => "30m, 2h, 1d or ISO time"},
+            "until" => %{"type" => "string", "description" => "ISO time"},
+            "limit" => %{"type" => "integer"},
+            "panel" => @panel,
+            "token" => @token
+          }
+        },
+        "handler" => fn args ->
+          params =
+            %{
+              "app" => args["app"],
+              "server" => args["server"],
+              "unit" => args["unit"],
+              "q" => args["q"],
+              "severity" => args["severity"],
+              "min_severity" => args["min_severity"],
+              "release" => args["release"],
+              "environment" => args["environment"],
+              "since" => args["since"],
+              "until" => args["until"],
+              "limit" => args["limit"]
+            }
+            |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+            |> Map.new()
+
+          with_client(args, fn client ->
+            result =
+              if args["group"] do
+                Client.search_log_groups(client, params)
+              else
+                Client.search_logs(client, params)
+              end
+
+            with {:ok, body} <- result, do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
         "name" => "apps_list",
         "description" => "List apps",
         "inputSchema" => %{

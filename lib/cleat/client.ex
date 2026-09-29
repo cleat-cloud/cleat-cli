@@ -65,6 +65,24 @@ defmodule Cleat.Client do
     request(client, :get, "/api/v1/servers/#{id}/logs", params: log_params(opts))
   end
 
+  @doc """
+  Searches collected log events (`GET /api/v1/logs`).
+
+  `params` is a string-keyed map with the filters the panel understands:
+  `app`, `server`, `unit`, `q`, `severity`, `min_severity`, `since`, `until`
+  and `limit`.
+  """
+  def search_logs(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :get, "/api/v1/logs", params: params)
+  end
+
+  @doc """
+  Groups similar collected errors (`GET /api/v1/logs/groups`).
+  """
+  def search_log_groups(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :get, "/api/v1/logs/groups", params: params)
+  end
+
   defp log_params(opts) do
     %{
       "tail" => opts[:tail],

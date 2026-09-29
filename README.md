@@ -62,6 +62,7 @@ panel and is stored as a hash server-side.
 | `cleat apps update APP` | Edit repo / branch / auto-deploy / host / port / runtime |
 | `cleat apps logs APP` | App journal, with `--tail`, `--since`, `--grep`, `--follow` |
 | `cleat servers logs ID` | Host journal, with `--unit`, `--tail`, `--since`, `--grep`, `--follow` |
+| `cleat events [APP]` | Search collected log events, with `--server`, `--unit`, `--query`, `--severity`, `--min-severity`, `--since`, `--until`, `--limit` |
 | `cleat env list APP` | List env vars (secrets masked) |
 | `cleat env set APP K=V` | Upsert one or more env vars |
 | `cleat env unset APP KEY` | Delete an env var |
@@ -87,9 +88,10 @@ codex  mcp add cleat -- cleat mcp
 grok   mcp add cleat -- cleat mcp
 ```
 
-Tools: `whoami`, `servers_list`, `apps_list`, `apps_show`, `apps_create`,
-`apps_update`, `apps_logs`, `env_list`, `env_set`, `env_unset`, `deploy`,
-`deploy_status`, `deploy_logs`, `cancel_deploy`, `drop`, `init_project`.
+Tools: `whoami`, `servers_list`, `server_logs`, `logs_search`, `apps_list`,
+`apps_show`, `apps_create`, `apps_update`, `apps_logs`, `env_list`, `env_set`,
+`env_unset`, `deploy`, `deploy_status`, `deploy_logs`, `cancel_deploy`, `drop`,
+`init_project`.
 
 `deploy` queues and returns a `deployment_id`; follow it with `deploy_status`
 and `deploy_logs`. Credentials come from `cleat login` (or `CLEAT_PANEL_URL` /
@@ -204,6 +206,32 @@ cleat servers logs 5 --unit caddy --since 30m
 `--since` accepts `30m`, `2h`, `1d` or an ISO date (`2026-09-21`,
 `2026-09-21 14:30`). `--grep` is a case-sensitive substring filter. `--tail`
 defaults to 200 (max 5000). `--follow` keeps polling and prints new lines.
+
+### Collected log events
+
+`apps logs` and `servers logs` read the live journal. `cleat events` searches
+the panel's collected log store instead: events are enriched with tenant, app,
+deploy, server and unit by the panel's collector, so they can be filtered by
+app, severity and time window without touching the VM.
+
+```bash
+# errors and worse for one app in the last hour
+cleat events my-app --min-severity err --since 1h
+
+# free-text search across the tenant, newest first
+cleat events --query "timeout" --limit 50
+
+# exact level, specific unit, machine-readable
+cleat events --app landing --severity warning --unit caddy --json
+
+# filter by release sha and cluster similar errors
+cleat events my-app --release abc123 --group
+```
+
+Levels: `emerg`, `alert`, `crit`, `err`, `warning`, `notice`, `info`, `debug`.
+`--min-severity` includes that level and above. The collector is opt-in on the
+panel (`LOG_COLLECTOR_ENABLED=true`); if it is off, `cleat events` returns no
+rows.
 
 ### Environment variables
 

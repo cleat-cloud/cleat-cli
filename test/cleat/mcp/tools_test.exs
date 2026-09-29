@@ -32,6 +32,7 @@ defmodule Cleat.MCP.ToolsTest do
              "whoami",
              "servers_list",
              "server_logs",
+             "logs_search",
              "apps_list",
              "apps_show",
              "apps_create",
@@ -134,6 +135,33 @@ defmodule Cleat.MCP.ToolsTest do
              })
 
     assert Jason.decode!(text)["lines"] == ["ERROR boom"]
+  end
+
+  test "logs_search forwards the filters to /api/v1/logs" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/logs"
+
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "landing"
+      assert params["min_severity"] == "err"
+      assert params["q"] == "timeout"
+      assert params["limit"] == "10"
+
+      Req.Test.json(conn, %{"data" => [%{"id" => 1, "message" => "boom"}]})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("logs_search", %{
+               "app" => "landing",
+               "min_severity" => "err",
+               "q" => "timeout",
+               "limit" => 10,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert [%{"message" => "boom"}] = Jason.decode!(text)
   end
 
   test "server_logs GETs /api/v1/servers/5/logs with the unit filter" do
