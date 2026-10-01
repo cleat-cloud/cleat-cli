@@ -17,6 +17,7 @@ defmodule Cleat.CLI do
     Logout,
     Logs,
     Servers,
+    Signals,
     Status,
     Whoami
   }
@@ -74,6 +75,7 @@ defmodule Cleat.CLI do
     release: :string,
     environment: :string,
     group: :boolean,
+    range: :string,
     release_name: :string,
     systemd_unit: :string,
     release_path: :string,
@@ -124,6 +126,7 @@ defmodule Cleat.CLI do
   defp dispatch(["apps" | rest], opts), do: run(Apps.run(rest, opts))
   defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
   defp dispatch(["events" | rest], opts), do: run(Events.run(rest, opts))
+  defp dispatch(["signals" | rest], opts), do: run(Signals.run(rest, opts))
 
   defp dispatch(["deploy" | rest], opts), do: run(Deploy.run(List.first(rest), opts))
   defp dispatch(["drop" | rest], opts), do: run(Drop.run(rest, opts))
@@ -215,6 +218,11 @@ defmodule Cleat.CLI do
                                              Search collected log events
                                              (levels: emerg alert crit err
                                              warning notice info debug)
+      signals health [APP]                   Overview of app health
+      signals metrics APP [--range 1h|6h|24h|1d]
+                                             RED metrics and deploy markers
+      signals alerts [list]                  Open default alerts
+      signals alerts ack ID                  Confirm a firing alert
 
     Environment
       env list APP [--branch B] [--reveal]   List env vars (secrets masked)

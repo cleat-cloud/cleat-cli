@@ -4,15 +4,16 @@ defmodule Cleat.Commands.Completions do
   @usage "usage: cleat completions bash|zsh"
 
   @commands ~w(
-    login logout whoami init config servers apps env deploy drop cancel status
-    logs completions mcp version help
+    login logout whoami init config servers apps env events signals deploy drop
+    cancel status logs completions mcp version help
   )
 
   @subcommands %{
     "servers" => ~w(list show create sync delete logs),
     "apps" => ~w(list show create update delete logs),
     "env" => ~w(list set unset),
-    "config" => ~w(list get set unset)
+    "config" => ~w(list get set unset),
+    "signals" => ~w(health metrics alerts)
   }
 
   def run(["bash"], _opts), do: print(bash())

@@ -83,6 +83,24 @@ defmodule Cleat.Client do
     request(client, :get, "/api/v1/logs/groups", params: params)
   end
 
+  @doc "Tenant health overview (`GET /api/v1/signals/health`)."
+  def signals_health(%__MODULE__{} = client, params \\ %{}) when is_map(params) do
+    request(client, :get, "/api/v1/signals/health", params: params)
+  end
+
+  @doc "RED + host snapshot for one app (`GET /api/v1/signals/metrics`)."
+  def signals_metrics(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :get, "/api/v1/signals/metrics", params: params)
+  end
+
+  @doc "Open signal alerts (`GET /api/v1/signals/alerts`)."
+  def signals_alerts(%__MODULE__{} = client), do: request(client, :get, "/api/v1/signals/alerts")
+
+  @doc "Ack a firing alert (`POST /api/v1/signals/alerts/:id/ack`)."
+  def ack_signal_alert(%__MODULE__{} = client, id) when is_binary(id) or is_integer(id) do
+    request(client, :post, "/api/v1/signals/alerts/#{id}/ack", json: %{})
+  end
+
   defp log_params(opts) do
     %{
       "tail" => opts[:tail],
