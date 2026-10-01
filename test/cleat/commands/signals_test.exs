@@ -139,6 +139,147 @@ defmodule Cleat.Commands.SignalsTest do
     assert output =~ ~s("slug": "catalogo")
   end
 
+  test "traces lists traces for an app" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/traces"
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "catalogo"
+      refute Map.has_key?(params, "trace_id")
+
+      Req.Test.json(conn, %{
+        "data" => [
+          %{
+            "trace_id" => "5b8aa5a2d2c872e8321cf37308d69df2",
+            "root_name" => "GET /checkout",
+            "services" => ["shop", "payment"],
+            "started_at" => "2026-10-01T21:00:00Z",
+            "duration_ms" => 42,
+            "span_count" => 2,
+            "error" => false
+          }
+        ]
+      })
+    end)
+
+    output = capture_io(fn -> assert :ok = Signals.run(["traces", "catalogo"], @conn) end)
+    assert output =~ "5b8aa5a2d2c872e8321cf37308d69df2"
+    assert output =~ "GET /checkout"
+    assert output =~ "shop"
+  end
+
+  test "traces forwards --service and --trace-id" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "catalogo"
+      assert params["service"] == "payment"
+      assert params["trace_id"] == "5b8aa5a2d2c872e8321cf37308d69df2"
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "trace" => %{
+            "trace_id" => "5b8aa5a2d2c872e8321cf37308d69df2",
+            "root_name" => "GET /checkout",
+            "services" => ["shop", "payment"],
+            "duration_ms" => 42,
+            "span_count" => 2,
+            "error" => false
+          },
+          "spans" => [
+            %{
+              "span_id" => "051581bf3cb55c13",
+              "parent_span_id" => nil,
+              "name" => "GET /checkout",
+              "service_name" => "shop",
+              "duration_ms" => 42,
+              "depth" => 0,
+              "status_code" => "ok"
+            },
+            %{
+              "span_id" => "5fb8a98c0bec6479",
+              "parent_span_id" => "051581bf3cb55c13",
+              "name" => "charge",
+              "service_name" => "payment",
+              "duration_ms" => 12,
+              "depth" => 1,
+              "status_code" => "ok"
+            }
+          ],
+          "service_map" => %{
+            "nodes" => ["shop", "payment"],
+            "edges" => [%{"from" => "shop", "to" => "payment", "count" => 1}]
+          },
+          "logs" => [%{"id" => 9, "message" => "trace 5b8aa5a2d2c872e8321cf37308d69df2"}]
+        }
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 Signals.run(
+                   ["traces", "catalogo"],
+                   Map.merge(@conn, %{
+                     service: "payment",
+                     trace_id: "5b8aa5a2d2c872e8321cf37308d69df2"
+                   })
+                 )
+      end)
+
+    assert output =~ "GET /checkout"
+    assert output =~ "charge"
+    assert output =~ "shop"
+    assert output =~ "payment"
+    assert output =~ "5b8aa5a2d2c872e8321cf37308d69df2"
+  end
+
+  test "traces without an app returns usage" do
+    assert {:error, message} = Signals.run(["traces"], @conn)
+    assert message =~ "usage"
+  end
+
+  test "sampling reads the current rate" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/sampling"
+      assert URI.decode_query(conn.query_string)["app"] == "catalogo"
+
+      Req.Test.json(conn, %{
+        "data" => %{"app_id" => 6, "slug" => "catalogo", "trace_sample_rate" => 0.0}
+      })
+    end)
+
+    output = capture_io(fn -> assert :ok = Signals.run(["sampling", "catalogo"], @conn) end)
+    assert output =~ "catalogo"
+    assert output =~ "0.0" or output =~ "0"
+  end
+
+  test "sampling --rate patches the panel" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+      assert conn.request_path == "/api/v1/signals/sampling"
+      body = conn |> Req.Test.raw_body() |> Jason.decode!()
+      assert body["app"] == "catalogo"
+      assert body["rate"] == 0.5
+
+      Req.Test.json(conn, %{
+        "data" => %{"app_id" => 6, "slug" => "catalogo", "trace_sample_rate" => 0.5}
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok = Signals.run(["sampling", "catalogo"], Map.put(@conn, :rate, 0.5))
+      end)
+
+    assert output =~ "0.5"
+  end
+
+  test "sampling without an app returns usage" do
+    assert {:error, message} = Signals.run(["sampling"], @conn)
+    assert message =~ "usage"
+  end
+
   test "unknown subcommand returns usage" do
     assert {:error, message} = Signals.run(["nope"], @conn)
     assert message =~ "usage"

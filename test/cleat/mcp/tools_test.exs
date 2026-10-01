@@ -36,6 +36,8 @@ defmodule Cleat.MCP.ToolsTest do
              "signals_health",
              "signals_metrics",
              "signals_alerts",
+             "signals_traces",
+             "signals_set_sampling",
              "apps_list",
              "apps_show",
              "apps_create",
@@ -206,6 +208,55 @@ defmodule Cleat.MCP.ToolsTest do
              })
 
     assert %{"status" => "acked"} = Jason.decode!(text)
+  end
+
+  test "signals_traces GETs /api/v1/signals/traces" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/traces"
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "catalogo"
+      assert params["trace_id"] == "abc"
+
+      Req.Test.json(conn, %{"data" => %{"trace" => %{"trace_id" => "abc"}}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_traces", %{
+               "app" => "catalogo",
+               "trace_id" => "abc",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"trace" => %{"trace_id" => "abc"}} = Jason.decode!(text)
+  end
+
+  test "signals_set_sampling requires an app" do
+    assert {:error, message} = Tools.call("signals_set_sampling", %{})
+    assert message =~ "app"
+  end
+
+  test "signals_set_sampling PATCHes the rate" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+      assert conn.request_path == "/api/v1/signals/sampling"
+      body = conn |> Req.Test.raw_body() |> Jason.decode!()
+      assert body["app"] == "catalogo"
+      assert body["rate"] == 1
+
+      Req.Test.json(conn, %{"data" => %{"slug" => "catalogo", "trace_sample_rate" => 1.0}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_set_sampling", %{
+               "app" => "catalogo",
+               "rate" => 1,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"trace_sample_rate" => 1.0} = Jason.decode!(text)
   end
 
   test "server_logs GETs /api/v1/servers/5/logs with the unit filter" do

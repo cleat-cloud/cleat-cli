@@ -42,6 +42,38 @@ defmodule Cleat.ClientTest do
              Client.signals_health(client, %{"app" => "catalogo"})
   end
 
+  test "signals_traces GETs /api/v1/signals/traces" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/traces"
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "catalogo"
+      assert params["service"] == "payment"
+      Req.Test.json(conn, %{"data" => [%{"trace_id" => "abc"}]})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => [%{"trace_id" => "abc"}]}} =
+             Client.signals_traces(client, %{"app" => "catalogo", "service" => "payment"})
+  end
+
+  test "update_signals_sampling PATCHes /api/v1/signals/sampling" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+      assert conn.request_path == "/api/v1/signals/sampling"
+      body = conn |> Req.Test.raw_body() |> Jason.decode!()
+      assert body["app"] == "catalogo"
+      assert body["rate"] == 0.25
+      Req.Test.json(conn, %{"data" => %{"trace_sample_rate" => 0.25}})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => %{"trace_sample_rate" => 0.25}}} =
+             Client.update_signals_sampling(client, %{"app" => "catalogo", "rate" => 0.25})
+  end
+
   test "list_servers returns the panel payload" do
     Req.Test.stub(__MODULE__, fn conn ->
       Req.Test.json(conn, %{"data" => [%{"id" => 1, "name" => "srv"}]})

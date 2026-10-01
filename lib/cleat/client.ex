@@ -101,6 +101,21 @@ defmodule Cleat.Client do
     request(client, :post, "/api/v1/signals/alerts/#{id}/ack", json: %{})
   end
 
+  @doc "List traces or fetch a waterfall (`GET /api/v1/signals/traces`)."
+  def signals_traces(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :get, "/api/v1/signals/traces", params: params)
+  end
+
+  @doc "Read per-app trace sample rate (`GET /api/v1/signals/sampling`)."
+  def signals_sampling(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :get, "/api/v1/signals/sampling", params: params)
+  end
+
+  @doc "Set per-app trace sample rate (`PATCH /api/v1/signals/sampling`)."
+  def update_signals_sampling(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :patch, "/api/v1/signals/sampling", json: params)
+  end
+
   defp log_params(opts) do
     %{
       "tail" => opts[:tail],

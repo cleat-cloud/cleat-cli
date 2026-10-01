@@ -13,7 +13,7 @@ defmodule Cleat.Commands.Completions do
     "apps" => ~w(list show create update delete logs),
     "env" => ~w(list set unset),
     "config" => ~w(list get set unset),
-    "signals" => ~w(health metrics alerts)
+    "signals" => ~w(health metrics alerts traces sampling)
   }
 
   def run(["bash"], _opts), do: print(bash())
