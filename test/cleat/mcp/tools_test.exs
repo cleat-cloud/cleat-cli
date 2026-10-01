@@ -33,6 +33,9 @@ defmodule Cleat.MCP.ToolsTest do
              "servers_list",
              "server_logs",
              "logs_search",
+             "signals_health",
+             "signals_metrics",
+             "signals_alerts",
              "apps_list",
              "apps_show",
              "apps_create",
@@ -162,6 +165,47 @@ defmodule Cleat.MCP.ToolsTest do
              })
 
     assert [%{"message" => "boom"}] = Jason.decode!(text)
+  end
+
+  test "signals_health GETs /api/v1/signals/health" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/health"
+      assert URI.decode_query(conn.query_string)["app"] == "catalogo"
+
+      Req.Test.json(conn, %{"data" => [%{"slug" => "catalogo", "status" => "degraded"}]})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_health", %{
+               "app" => "catalogo",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert [%{"slug" => "catalogo", "status" => "degraded"}] = Jason.decode!(text)
+  end
+
+  test "signals_metrics requires an app" do
+    assert {:error, message} = Tools.call("signals_metrics", %{})
+    assert message =~ "app"
+  end
+
+  test "signals_alerts acks when id is present" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/signals/alerts/9/ack"
+      Req.Test.json(conn, %{"data" => %{"id" => 9, "status" => "acked"}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_alerts", %{
+               "id" => "9",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"status" => "acked"} = Jason.decode!(text)
   end
 
   test "server_logs GETs /api/v1/servers/5/logs with the unit filter" do
