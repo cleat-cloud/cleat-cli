@@ -76,6 +76,9 @@ defmodule Cleat.CLI do
     environment: :string,
     group: :boolean,
     range: :string,
+    trace_id: :string,
+    service: :string,
+    rate: :float,
     release_name: :string,
     systemd_unit: :string,
     release_path: :string,
@@ -223,6 +226,9 @@ defmodule Cleat.CLI do
                                              RED metrics and deploy markers
       signals alerts [list]                  Open default alerts
       signals alerts ack ID                  Confirm a firing alert
+      signals traces APP [--trace-id ID] [--service NAME]
+                                             List traces or open a waterfall
+      signals sampling APP [--rate 0..1]     Read or set trace sampling
 
     Environment
       env list APP [--branch B] [--reveal]   List env vars (secrets masked)

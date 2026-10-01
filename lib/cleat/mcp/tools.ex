@@ -459,6 +459,63 @@ defmodule Cleat.MCP.Tools do
         end
       },
       %{
+        "name" => "signals_traces",
+        "description" =>
+          "List traces for an app, or fetch waterfall, service map and correlated logs when trace_id is set.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "trace_id" => %{"type" => "string", "description" => "Open one trace waterfall"},
+            "service" => %{"type" => "string", "description" => "Filter traces by service name"},
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app"]
+        },
+        "handler" => fn args ->
+          params =
+            compact_params(%{
+              "app" => args["app"],
+              "trace_id" => args["trace_id"],
+              "service" => args["service"]
+            })
+
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.signals_traces(client, params), do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
+        "name" => "signals_set_sampling",
+        "description" =>
+          "Set the fraction of traces stored for an app (0 disables ingest, 1 stores all).",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "rate" => %{
+              "type" => "number",
+              "description" => "Sample rate between 0 and 1"
+            },
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app", "rate"]
+        },
+        "handler" => fn args ->
+          with_client(args, fn client ->
+            with {:ok, body} <-
+                   Client.update_signals_sampling(client, %{
+                     "app" => args["app"],
+                     "rate" => args["rate"]
+                   }) do
+              {:ok, data_text(body)}
+            end
+          end)
+        end
+      },
+      %{
         "name" => "apps_list",
         "description" => "List apps",
         "inputSchema" => %{

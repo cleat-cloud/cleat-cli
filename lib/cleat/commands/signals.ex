@@ -1,6 +1,6 @@
 defmodule Cleat.Commands.Signals do
   @moduledoc """
-  `cleat signals` — health, metrics and alerts from the panel (Corte 02).
+  `cleat signals` — health, metrics, alerts and traces from the panel.
   """
 
   alias Cleat.{Client, Commands, Output}
@@ -11,6 +11,8 @@ defmodule Cleat.Commands.Signals do
     cleat signals metrics APP [--range 1h|6h|24h|1d]
     cleat signals alerts [list]
     cleat signals alerts ack ID
+    cleat signals traces APP [--trace-id ID] [--service NAME]
+    cleat signals sampling APP [--rate 0.0..1.0]
   """
 
   def run(["health" | rest], opts), do: health(rest, opts)
@@ -19,6 +21,10 @@ defmodule Cleat.Commands.Signals do
   def run(["alerts"], opts), do: alerts(opts)
   def run(["alerts", "list" | _rest], opts), do: alerts(opts)
   def run(["alerts", "ack", id | _rest], opts), do: ack(id, opts)
+  def run(["traces", app | _rest], opts), do: traces(app, opts)
+  def run(["traces"], _opts), do: {:error, @usage}
+  def run(["sampling", app | _rest], opts), do: sampling(app, opts)
+  def run(["sampling"], _opts), do: {:error, @usage}
   def run(_args, _opts), do: {:error, @usage}
 
   defp health(args, opts) do
@@ -63,6 +69,41 @@ defmodule Cleat.Commands.Signals do
       end
 
       :ok
+    end
+  end
+
+  defp traces(app, opts) do
+    params =
+      compact(%{
+        "app" => app,
+        "trace_id" => opts[:trace_id],
+        "service" => opts[:service]
+      })
+
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- Client.signals_traces(client, params) do
+      data = Commands.data(body)
+      if opts[:json], do: Output.json(data), else: print_traces(data)
+      :ok
+    end
+  end
+
+  defp sampling(app, opts) do
+    with {:ok, client} <- Commands.client(opts) do
+      result =
+        case opts[:rate] do
+          nil ->
+            Client.signals_sampling(client, compact(%{"app" => app}))
+
+          rate ->
+            Client.update_signals_sampling(client, %{"app" => app, "rate" => rate})
+        end
+
+      with {:ok, body} <- result do
+        data = Commands.data(body)
+        if opts[:json], do: Output.json(data), else: print_sampling(data)
+        :ok
+      end
     end
   end
 
@@ -140,4 +181,61 @@ defmodule Cleat.Commands.Signals do
   defp markers_label(markers) do
     Enum.map_join(markers, ",", fn marker -> marker["git_sha"] || inspect(marker) end)
   end
+
+  defp print_traces(rows) when is_list(rows) do
+    if rows == [] do
+      Output.info("No traces in this window.")
+    else
+      table =
+        Enum.map(rows, fn row ->
+          [
+            row["trace_id"],
+            row["root_name"],
+            services(row["services"]),
+            row["duration_ms"],
+            row["span_count"],
+            if(row["error"], do: "error", else: "ok")
+          ]
+        end)
+
+      Output.table(table, ["TRACE", "ROOT", "SERVICES", "MS", "SPANS", "STATUS"])
+    end
+  end
+
+  defp print_traces(%{} = detail) do
+    trace = detail["trace"] || %{}
+    Output.info("#{trace["trace_id"]}  #{trace["root_name"]}  #{trace["duration_ms"]}ms")
+
+    Enum.each(detail["spans"] || [], fn span ->
+      indent = String.duplicate("  ", span["depth"] || 0)
+      Output.info("#{indent}#{span["name"]}  #{span["service_name"]}  #{span["duration_ms"]}ms")
+    end)
+
+    print_service_map(detail["service_map"])
+    print_trace_logs(detail["logs"] || [])
+  end
+
+  defp print_service_map(%{"edges" => edges}) when is_list(edges) and edges != [] do
+    Output.info("MAP  #{Enum.map_join(edges, ",", &edge_label/1)}")
+  end
+
+  defp print_service_map(_), do: :ok
+
+  defp print_trace_logs([]), do: :ok
+
+  defp print_trace_logs(logs) do
+    Enum.each(logs, fn log ->
+      Output.info("LOG  #{log["id"]}  #{log["message"]}")
+    end)
+  end
+
+  defp print_sampling(data) do
+    Output.info("#{data["slug"]}  rate=#{data["trace_sample_rate"]}")
+  end
+
+  defp services(list) when is_list(list), do: Enum.join(list, ",")
+  defp services(_), do: "—"
+
+  defp edge_label(%{"from" => from, "to" => to, "count" => count}), do: "#{from}→#{to}(#{count})"
+  defp edge_label(other), do: inspect(other)
 end
