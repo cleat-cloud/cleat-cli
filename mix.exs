@@ -7,7 +7,7 @@ defmodule Cleat.MixProject do
     [
       app: :cleat_cli,
       version: @version,
-      elixir: "~> 1.15",
+      elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       escript: escript(),
       deps: deps(),
