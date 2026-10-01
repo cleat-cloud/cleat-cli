@@ -204,16 +204,69 @@ defmodule Cleat.MCP.Tools do
   end
 
   defp register_static_app(client, slug, host, server) do
-    attrs = %{
-      "name" => slug,
-      "slug" => slug,
-      "host" => host,
-      "server_id" => server,
-      "runtime" => "static"
-    }
+    with {:ok, server_id} <- resolve_server_id(client, server) do
+      attrs = %{
+        "name" => slug,
+        "slug" => slug,
+        "host" => host,
+        "server_id" => server_id,
+        "runtime" => "static"
+      }
 
-    with {:ok, body} <- Client.create_app(client, attrs) do
-      {:ok, Commands.data(body)["slug"]}
+      with {:ok, body} <- Client.create_app(client, attrs) do
+        {:ok, Commands.data(body)["slug"]}
+      end
+    end
+  end
+
+  defp resolve_server_id(_client, server) when not is_binary(server) or server == "",
+    do: {:error, "server is required"}
+
+  defp resolve_server_id(client, server) do
+    trimmed = String.trim(server)
+
+    cond do
+      trimmed == "" ->
+        {:error, "server is required"}
+
+      numeric_server_id?(trimmed) ->
+        {:ok, trimmed}
+
+      true ->
+        with {:ok, body} <- Client.list_servers(client) do
+          match_server(List.wrap(Commands.data(body)), trimmed)
+        end
+    end
+  end
+
+  defp numeric_server_id?(value), do: Regex.match?(~r/^\d+$/, value)
+
+  defp match_server(servers, query) do
+    needle = String.downcase(query)
+
+    found =
+      Enum.find(servers, fn server ->
+        id = server |> Map.get("id") |> to_string() |> String.downcase()
+        name = server |> Map.get("name") |> to_string() |> String.downcase()
+        slug = server |> Map.get("slug") |> to_string() |> String.downcase()
+
+        id == needle or name == needle or (slug != "" and slug == needle)
+      end)
+
+    case found do
+      nil ->
+        listing =
+          servers
+          |> Enum.map(fn server -> "#{Map.get(server, "id")} (#{Map.get(server, "name")})" end)
+          |> Enum.join(", ")
+
+        listing = if listing == "", do: "none", else: listing
+
+        {:error,
+         ~s|unknown server "#{query}". Use a servers_list id (e.g. 5) — servers: #{listing}|}
+
+      server ->
+        {:ok, server |> Map.get("id") |> to_string()}
     end
   end
 
@@ -363,14 +416,17 @@ defmodule Cleat.MCP.Tools do
       %{
         "name" => "apps_create",
         "description" =>
-          "Create an app. runtime_apt_packages installs apt deps on the VM; alternatively commit .cleat_deploy/runtime-packages",
+          "Create an app. server accepts a servers_list id, name or slug. runtime_apt_packages installs apt deps on the VM; alternatively commit .cleat_deploy/runtime-packages",
         "inputSchema" => %{
           "type" => "object",
           "properties" => %{
             "name" => %{"type" => "string"},
             "repo" => %{"type" => "string", "description" => "owner/repo"},
             "host" => %{"type" => "string"},
-            "server" => %{"type" => "string"},
+            "server" => %{
+              "type" => "string",
+              "description" => "Server id, name or slug from servers_list"
+            },
             "runtime" => %{"type" => "string"},
             "slug" => %{"type" => "string"},
             "branch" => %{"type" => "string"},
@@ -382,22 +438,24 @@ defmodule Cleat.MCP.Tools do
           "required" => ["name", "repo", "host", "server"]
         },
         "handler" => fn args ->
-          attrs =
-            %{
-              "name" => args["name"],
-              "github_repo" => args["repo"],
-              "host" => args["host"],
-              "server_id" => args["server"],
-              "slug" => args["slug"],
-              "branch" => args["branch"],
-              "port" => args["port"],
-              "runtime" => args["runtime"],
-              "runtime_apt_packages" => args["runtime_apt_packages"]
-            }
-            |> Map.reject(fn {_k, v} -> is_nil(v) or v == "" end)
-
           with_client(args, fn client ->
-            with {:ok, body} <- Client.create_app(client, attrs), do: {:ok, data_text(body)}
+            with {:ok, server_id} <- resolve_server_id(client, args["server"]) do
+              attrs =
+                %{
+                  "name" => args["name"],
+                  "github_repo" => args["repo"],
+                  "host" => args["host"],
+                  "server_id" => server_id,
+                  "slug" => args["slug"],
+                  "branch" => args["branch"],
+                  "port" => args["port"],
+                  "runtime" => args["runtime"],
+                  "runtime_apt_packages" => args["runtime_apt_packages"]
+                }
+                |> Map.reject(fn {_k, v} -> is_nil(v) or v == "" end)
+
+              with {:ok, body} <- Client.create_app(client, attrs), do: {:ok, data_text(body)}
+            end
           end)
         end
       },
