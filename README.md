@@ -10,7 +10,7 @@ vars, trigger deploys, and watch build and runtime logs.
 
 ## Install
 
-Requires Elixir 1.15+ / OTP 26+.
+Requires Elixir 1.17+ / OTP 27+. CI also runs Elixir 1.19 / OTP 28.
 
 ```bash
 git clone https://github.com/cleat-cloud/cleat-cli.git
