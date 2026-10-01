@@ -243,6 +243,109 @@ defmodule Cleat.MCP.ToolsTest do
              })
   end
 
+  test "apps_create resolves a server name via servers_list before posting" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/servers"} ->
+          Req.Test.json(conn, %{
+            "data" => [
+              %{"id" => 5, "name" => "gestaobem-cx33"},
+              %{"id" => 6, "name" => "chatwoot-e2e"}
+            ]
+          })
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["server_id"] == "5"
+
+          Req.Test.json(conn, %{"data" => %{"id" => 1, "slug" => "cotacao-passagens"}})
+      end
+    end)
+
+    assert {:ok, text} =
+             Tools.call("apps_create", %{
+               "name" => "Cotação de Passagens",
+               "repo" => "gestao-bem/cotacao-passagens",
+               "host" => "cotacao.gestaobem.com",
+               "server" => "gestaobem-cx33",
+               "runtime" => "node",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["slug"] == "cotacao-passagens"
+  end
+
+  test "apps_create lists known servers when the name does not match" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/servers"
+
+      Req.Test.json(conn, %{
+        "data" => [
+          %{"id" => 5, "name" => "gestaobem-cx33"},
+          %{"id" => 6, "name" => "chatwoot-e2e"}
+        ]
+      })
+    end)
+
+    assert {:error, message} =
+             Tools.call("apps_create", %{
+               "name" => "landing",
+               "repo" => "owner/site",
+               "host" => "landing.example.com",
+               "server" => "production",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert message =~ "production"
+    assert message =~ "5 (gestaobem-cx33)"
+    assert message =~ "6 (chatwoot-e2e)"
+  end
+
+  test "drop resolves a server name when registering a static app" do
+    dir = temp_drop_dir()
+    slug = dir |> Path.basename() |> slugify()
+    drops_path = "/api/v1/apps/#{slug}/drops"
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case {conn.method, conn.request_path} do
+        {"GET", "/api/v1/apps"} ->
+          Req.Test.json(conn, %{"data" => []})
+
+        {"GET", "/api/v1/servers"} ->
+          Req.Test.json(conn, %{
+            "data" => [%{"id" => 5, "name" => "gestaobem-cx33"}]
+          })
+
+        {"POST", "/api/v1/apps"} ->
+          body = Jason.decode!(Req.Test.raw_body(conn))
+          assert body["server_id"] == "5"
+
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 5, "slug" => slug}})
+
+        {"POST", ^drops_path} ->
+          conn
+          |> Plug.Conn.put_status(201)
+          |> Req.Test.json(%{"data" => %{"id" => 9, "status" => "queued"}})
+      end
+    end)
+
+    assert {:ok, text} =
+             Tools.call("drop", %{
+               "path" => dir,
+               "server" => "gestaobem-cx33",
+               "host" => "new.example.com",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["id"] == 9
+  end
+
   test "apps_create posts runtime_apt_packages" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "POST"
