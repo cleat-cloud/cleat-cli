@@ -16,4 +16,11 @@ defmodule Cleat.CLIMcpTest do
     [project_section | _] = String.split(usage, "Resources")
     assert project_section =~ ~r/^\s*mcp\s/m
   end
+
+  test "usage documents signals health, metrics and alerts" do
+    usage = CLI.usage()
+    assert usage =~ "signals health"
+    assert usage =~ "signals metrics"
+    assert usage =~ "signals alerts"
+  end
 end
