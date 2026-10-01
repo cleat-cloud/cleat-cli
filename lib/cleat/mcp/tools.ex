@@ -85,6 +85,12 @@ defmodule Cleat.MCP.Tools do
 
   defp data_text(body), do: json(Commands.data(body))
 
+  defp compact_params(params) do
+    params
+    |> Enum.reject(fn {_key, value} -> is_nil(value) or value == "" end)
+    |> Map.new()
+  end
+
   defp drop_plan(%{"app" => app}) when is_binary(app) and app != "" do
     {:ok, {:app, app}}
   end
@@ -380,6 +386,72 @@ defmodule Cleat.MCP.Tools do
                 Client.search_log_groups(client, params)
               else
                 Client.search_logs(client, params)
+              end
+
+            with {:ok, body} <- result, do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
+        "name" => "signals_health",
+        "description" =>
+          "Overview of application health from collected logs (degraded/down, reasons, preceding release). Optional app filter.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "panel" => @panel,
+            "token" => @token
+          }
+        },
+        "handler" => fn args ->
+          params = compact_params(%{"app" => args["app"]})
+
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.signals_health(client, params), do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
+        "name" => "signals_metrics",
+        "description" =>
+          "RED metrics, host snapshot and deploy markers for one app. range is 1h, 6h, 24h or 1d.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "range" => %{"type" => "string", "description" => "1h, 6h, 24h or 1d"},
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app"]
+        },
+        "handler" => fn args ->
+          params = compact_params(%{"app" => args["app"], "range" => args["range"]})
+
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.signals_metrics(client, params), do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
+        "name" => "signals_alerts",
+        "description" => "List open default alerts. Pass id to ack a firing alert.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "id" => %{"type" => "string", "description" => "Alert id to ack"},
+            "panel" => @panel,
+            "token" => @token
+          }
+        },
+        "handler" => fn args ->
+          with_client(args, fn client ->
+            result =
+              case args["id"] do
+                id when is_binary(id) and id != "" -> Client.ack_signal_alert(client, id)
+                id when is_integer(id) -> Client.ack_signal_alert(client, id)
+                _ -> Client.signals_alerts(client)
               end
 
             with {:ok, body} <- result, do: {:ok, data_text(body)}
