@@ -23,4 +23,10 @@ defmodule Cleat.CLIMcpTest do
     assert usage =~ "signals metrics"
     assert usage =~ "signals alerts"
   end
+
+  test "usage documents signals traces and sampling" do
+    usage = CLI.usage()
+    assert usage =~ "signals traces"
+    assert usage =~ "signals sampling"
+  end
 end
