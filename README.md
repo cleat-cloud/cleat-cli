@@ -23,6 +23,31 @@ mix install
 `mix install /usr/local/bin` or `CLEAT_INSTALL_DIR`). Make sure the destination
 is on your `PATH`, then check `cleat version`.
 
+## API contract
+
+The panel is the source of truth: `cleat-deploy` `priv/api_contract.json`
+(`CleatDeployWeb.Api.Contract`). This repo vendors a copy at
+`test/fixtures/api_contract.json`.
+
+CI checks the fixture against `cleat-cloud/cleat-deploy` `main`. Locally:
+
+```bash
+# sibling checkout of the panel
+mix test test/cleat/contract_test.exs
+scripts/check_panel_contract.sh
+
+# or point at a specific file
+CLEAT_DEPLOY_CONTRACT=/path/to/cleat-web/priv/api_contract.json mix test
+```
+
+When the panel adds a resource or key (compatible change): merge the panel PR
+first, then copy `priv/api_contract.json` into the fixture and list the new
+resource in `test/cleat/contract_test.exs` `@used`.
+
+When the panel renames or drops a key the CLI reads (breaking change): update
+the CLI in the same window as the panel merge. `mix test` fails on missing
+keys even before the full-file diff.
+
 ## Quick start
 
 ```bash
