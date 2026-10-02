@@ -65,4 +65,39 @@ defmodule Cleat.ContractTest do
     assert unknown == [],
            "new panel resources are not covered by the CLI contract test: #{inspect(unknown)}"
   end
+
+  test "vendored fixture matches the canonical panel contract" do
+    case panel_contract_path() do
+      nil ->
+        if System.get_env("CI") in ["true", "1"] do
+          flunk("""
+          CI must compare the fixture against cleat-deploy priv/api_contract.json.
+          Set CLEAT_DEPLOY_CONTRACT to that file.
+          """)
+        else
+          :ok
+        end
+
+      path ->
+        panel = path |> File.read!() |> Jason.decode!()
+        fixture = @fixture |> File.read!() |> Jason.decode!()
+
+        assert fixture == panel, """
+        CLI fixture drifted from the panel contract at #{path}.
+        Copy priv/api_contract.json from cleat-cloud/cleat-deploy into
+        test/fixtures/api_contract.json and update @used in this test.
+        """
+    end
+  end
+
+  defp panel_contract_path do
+    env = System.get_env("CLEAT_DEPLOY_CONTRACT")
+    sibling = Path.expand("../../../cleat-web/priv/api_contract.json", __DIR__)
+
+    cond do
+      is_binary(env) and env != "" -> env
+      File.exists?(sibling) -> sibling
+      true -> nil
+    end
+  end
 end

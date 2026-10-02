@@ -39,5 +39,20 @@ jobs:
       - name: Compile
         run: mix compile --warnings-as-errors
 
+      - name: Checkout panel API contract
+        uses: actions/checkout@v4
+        with:
+          repository: cleat-cloud/cleat-deploy
+          path: .panel
+          sparse-checkout: priv/api_contract.json
+          sparse-checkout-cone-mode: false
+
+      - name: Fixture matches canonical panel contract
+        run: scripts/check_panel_contract.sh
+        env:
+          CLEAT_DEPLOY_CONTRACT: ${{ github.workspace }}/.panel/priv/api_contract.json
+
       - name: Test
         run: mix test
+        env:
+          CLEAT_DEPLOY_CONTRACT: ${{ github.workspace }}/.panel/priv/api_contract.json
