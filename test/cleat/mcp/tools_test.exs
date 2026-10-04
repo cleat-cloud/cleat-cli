@@ -35,6 +35,7 @@ defmodule Cleat.MCP.ToolsTest do
              "logs_search",
              "signals_health",
              "signals_metrics",
+             "signals_pages",
              "signals_alerts",
              "signals_traces",
              "signals_set_sampling",
@@ -191,6 +192,42 @@ defmodule Cleat.MCP.ToolsTest do
   test "signals_metrics requires an app" do
     assert {:error, message} = Tools.call("signals_metrics", %{})
     assert message =~ "app"
+  end
+
+  test "signals_pages requires an app" do
+    assert {:error, message} = Tools.call("signals_pages", %{})
+    assert message =~ "app"
+  end
+
+  test "signals_pages GETs /api/v1/signals/pages" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/pages"
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "new-lp"
+      assert params["range"] == "24h"
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "slug" => "new-lp",
+          "range" => "24h",
+          "requested" => [%{"path" => "/blog", "requests" => 1}],
+          "visited" => [],
+          "pageviews" => 0,
+          "uniques" => 0
+        }
+      })
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_pages", %{
+               "app" => "new-lp",
+               "range" => "24h",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"slug" => "new-lp", "requested" => [%{"path" => "/blog"}]} = Jason.decode!(text)
   end
 
   test "signals_alerts acks when id is present" do

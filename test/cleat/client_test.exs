@@ -42,6 +42,22 @@ defmodule Cleat.ClientTest do
              Client.signals_health(client, %{"app" => "catalogo"})
   end
 
+  test "signals_pages GETs /api/v1/signals/pages" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/pages"
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "new-lp"
+      assert params["range"] == "24h"
+      Req.Test.json(conn, %{"data" => %{"slug" => "new-lp", "requested" => []}})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => %{"slug" => "new-lp"}}} =
+             Client.signals_pages(client, %{"app" => "new-lp", "range" => "24h"})
+  end
+
   test "signals_traces GETs /api/v1/signals/traces" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "GET"

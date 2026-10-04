@@ -29,6 +29,7 @@ defmodule Cleat.ContractTest do
     "signal_health" =>
       ~w(app_id slug name status reasons error_count previous_error_count preceding_release),
     "signal_metrics" => ~w(app_id slug range red host series deploy_markers),
+    "signal_pages" => ~w(app_id slug range requested visited pageviews uniques),
     "signal_alert" =>
       ~w(id app_id slug rule status message channel fired_at acked_at delivered_at),
     "signal_incident" => ~w(app_id slug events),

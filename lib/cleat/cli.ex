@@ -224,6 +224,8 @@ defmodule Cleat.CLI do
       signals health [APP]                   Overview of app health
       signals metrics APP [--range 1h|6h|24h|1d]
                                              RED metrics and deploy markers
+      signals pages APP [--range 1h|6h|24h|1d]
+                                             Most requested HTTP paths
       signals alerts [list]                  Open default alerts
       signals alerts ack ID                  Confirm a firing alert
       signals traces APP [--trace-id ID] [--service NAME]

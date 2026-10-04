@@ -435,6 +435,28 @@ defmodule Cleat.MCP.Tools do
         end
       },
       %{
+        "name" => "signals_pages",
+        "description" =>
+          "Most requested HTTP paths from Caddy access logs for one app, plus visited pageviews when analytics inject is on. range is 1h, 6h, 24h or 1d.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "range" => %{"type" => "string", "description" => "1h, 6h, 24h or 1d"},
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app"]
+        },
+        "handler" => fn args ->
+          params = compact_params(%{"app" => args["app"], "range" => args["range"]})
+
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.signals_pages(client, params), do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
         "name" => "signals_alerts",
         "description" => "List open default alerts. Pass id to ack a firing alert.",
         "inputSchema" => %{
