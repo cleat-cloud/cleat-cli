@@ -86,6 +86,42 @@ defmodule Cleat.Commands.SignalsTest do
     assert message =~ "usage"
   end
 
+  test "pages requires an app and forwards --range" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/signals/pages"
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "new-lp"
+      assert params["range"] == "24h"
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "app_id" => 56,
+          "slug" => "new-lp",
+          "range" => "24h",
+          "requested" => [%{"path" => "/", "requests" => 2}],
+          "visited" => [%{"path" => "/login", "pageviews" => 7}],
+          "pageviews" => 9,
+          "uniques" => 3
+        }
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok = Signals.run(["pages", "new-lp"], Map.put(@conn, :range, "24h"))
+      end)
+
+    assert output =~ "new-lp"
+    assert output =~ "/"
+    assert output =~ "2"
+    assert output =~ "/login"
+  end
+
+  test "pages without an app returns usage" do
+    assert {:error, message} = Signals.run(["pages"], @conn)
+    assert message =~ "usage"
+  end
+
   test "alerts lists firing rows" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "GET"

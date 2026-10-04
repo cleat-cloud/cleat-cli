@@ -10,10 +10,10 @@ defmodule Cleat.Commands.Completions do
 
   @subcommands %{
     "servers" => ~w(list show create sync delete logs),
-    "apps" => ~w(list show create update delete logs),
+    "apps" => ~w(list show create update delete logs query),
     "env" => ~w(list set unset),
     "config" => ~w(list get set unset),
-    "signals" => ~w(health metrics alerts traces sampling)
+    "signals" => ~w(health metrics pages alerts traces sampling)
   }
 
   def run(["bash"], _opts), do: print(bash())

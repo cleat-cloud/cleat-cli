@@ -61,6 +61,11 @@ defmodule Cleat.Client do
     request(client, :get, "/api/v1/apps/#{app}/logs", params: log_params(opts))
   end
 
+  @doc "Read-only SQL against the app datastore (`POST /api/v1/apps/:id/query`)."
+  def query_app(%__MODULE__{} = client, app, attrs) when is_map(attrs) do
+    request(client, :post, "/api/v1/apps/#{app}/query", json: attrs)
+  end
+
   def server_logs(%__MODULE__{} = client, id, opts \\ %{}) when is_map(opts) do
     request(client, :get, "/api/v1/servers/#{id}/logs", params: log_params(opts))
   end
@@ -91,6 +96,11 @@ defmodule Cleat.Client do
   @doc "RED + host snapshot for one app (`GET /api/v1/signals/metrics`)."
   def signals_metrics(%__MODULE__{} = client, params) when is_map(params) do
     request(client, :get, "/api/v1/signals/metrics", params: params)
+  end
+
+  @doc "Most requested HTTP paths and visited pageviews (`GET /api/v1/signals/pages`)."
+  def signals_pages(%__MODULE__{} = client, params) when is_map(params) do
+    request(client, :get, "/api/v1/signals/pages", params: params)
   end
 
   @doc "Open signal alerts (`GET /api/v1/signals/alerts`)."

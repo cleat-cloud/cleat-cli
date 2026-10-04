@@ -435,6 +435,28 @@ defmodule Cleat.MCP.Tools do
         end
       },
       %{
+        "name" => "signals_pages",
+        "description" =>
+          "Most requested HTTP paths from Caddy access logs for one app, plus visited pageviews when analytics inject is on. range is 1h, 6h, 24h or 1d.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "range" => %{"type" => "string", "description" => "1h, 6h, 24h or 1d"},
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app"]
+        },
+        "handler" => fn args ->
+          params = compact_params(%{"app" => args["app"], "range" => args["range"]})
+
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.signals_pages(client, params), do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
         "name" => "signals_alerts",
         "description" => "List open default alerts. Pass id to ack a firing alert.",
         "inputSchema" => %{
@@ -660,6 +682,37 @@ defmodule Cleat.MCP.Tools do
                      since: args["since"],
                      grep: args["grep"]
                    }),
+                 do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
+        "name" => "apps_query",
+        "description" =>
+          "Run one read-only SQL statement (SELECT, WITH, EXPLAIN, SHOW, PRAGMA) against the app's Postgres addon or local SQLite. Remote Turso/libSQL is unsupported.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "sql" => %{"type" => "string", "description" => "One read-only SQL statement"},
+            "limit" => %{
+              "type" => "integer",
+              "description" => "Max rows, 1-200 (default 50)"
+            },
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app", "sql"]
+        },
+        "handler" => fn args ->
+          attrs =
+            case args["limit"] do
+              limit when is_integer(limit) -> %{"sql" => args["sql"], "limit" => limit}
+              _ -> %{"sql" => args["sql"]}
+            end
+
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.query_app(client, args["app"], attrs),
                  do: {:ok, data_text(body)}
           end)
         end

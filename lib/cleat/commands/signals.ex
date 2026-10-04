@@ -9,6 +9,7 @@ defmodule Cleat.Commands.Signals do
   usage:
     cleat signals health [APP]
     cleat signals metrics APP [--range 1h|6h|24h|1d]
+    cleat signals pages APP [--range 1h|6h|24h|1d]
     cleat signals alerts [list]
     cleat signals alerts ack ID
     cleat signals traces APP [--trace-id ID] [--service NAME]
@@ -18,6 +19,8 @@ defmodule Cleat.Commands.Signals do
   def run(["health" | rest], opts), do: health(rest, opts)
   def run(["metrics", app | _rest], opts), do: metrics(app, opts)
   def run(["metrics"], _opts), do: {:error, @usage}
+  def run(["pages", app | _rest], opts), do: pages(app, opts)
+  def run(["pages"], _opts), do: {:error, @usage}
   def run(["alerts"], opts), do: alerts(opts)
   def run(["alerts", "list" | _rest], opts), do: alerts(opts)
   def run(["alerts", "ack", id | _rest], opts), do: ack(id, opts)
@@ -44,6 +47,17 @@ defmodule Cleat.Commands.Signals do
          {:ok, body} <- Client.signals_metrics(client, params) do
       data = Commands.data(body)
       if opts[:json], do: Output.json(data), else: print_metrics(data)
+      :ok
+    end
+  end
+
+  defp pages(app, opts) do
+    params = compact(%{"app" => app, "range" => opts[:range]})
+
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- Client.signals_pages(client, params) do
+      data = Commands.data(body)
+      if opts[:json], do: Output.json(data), else: print_pages(data)
       :ok
     end
   end
@@ -152,6 +166,33 @@ defmodule Cleat.Commands.Signals do
     )
 
     Output.info("MARKERS  #{markers_label(markers)}")
+  end
+
+  defp print_pages(data) do
+    Output.info(
+      "#{data["slug"]}  range=#{data["range"]}  pageviews=#{data["pageviews"]}  uniques=#{data["uniques"]}"
+    )
+
+    requested = data["requested"] || []
+    visited = data["visited"] || []
+
+    if requested == [] do
+      Output.info("REQUESTED  —")
+    else
+      Output.table(
+        Enum.map(requested, fn row -> [row["path"], row["requests"]] end),
+        ["PATH", "REQUESTS"]
+      )
+    end
+
+    if visited == [] do
+      Output.info("VISITED  —")
+    else
+      Output.table(
+        Enum.map(visited, fn row -> [row["path"], row["pageviews"]] end),
+        ["PATH", "PAGEVIEWS"]
+      )
+    end
   end
 
   defp print_alerts([]) do

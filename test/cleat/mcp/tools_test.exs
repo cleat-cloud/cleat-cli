@@ -35,6 +35,7 @@ defmodule Cleat.MCP.ToolsTest do
              "logs_search",
              "signals_health",
              "signals_metrics",
+             "signals_pages",
              "signals_alerts",
              "signals_traces",
              "signals_set_sampling",
@@ -43,6 +44,7 @@ defmodule Cleat.MCP.ToolsTest do
              "apps_create",
              "apps_update",
              "apps_logs",
+             "apps_query",
              "env_list",
              "env_set",
              "env_unset",
@@ -142,6 +144,40 @@ defmodule Cleat.MCP.ToolsTest do
     assert Jason.decode!(text)["lines"] == ["ERROR boom"]
   end
 
+  test "apps_query POSTs sql to /api/v1/apps/:id/query" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/apps/new-lp/query"
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{"sql" => "SELECT 1", "limit" => 10}
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "slug" => "new-lp",
+          "engine" => "sqlite",
+          "columns" => ["?column?"],
+          "rows" => [["1"]],
+          "truncated" => false
+        }
+      })
+    end)
+
+    assert {:ok, text} =
+             Tools.call("apps_query", %{
+               "app" => "new-lp",
+               "sql" => "SELECT 1",
+               "limit" => 10,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["engine"] == "sqlite"
+  end
+
+  test "apps_query requires sql" do
+    assert {:error, message} = Tools.call("apps_query", %{"app" => "new-lp"})
+    assert message =~ "sql"
+  end
+
   test "logs_search forwards the filters to /api/v1/logs" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "GET"
@@ -191,6 +227,42 @@ defmodule Cleat.MCP.ToolsTest do
   test "signals_metrics requires an app" do
     assert {:error, message} = Tools.call("signals_metrics", %{})
     assert message =~ "app"
+  end
+
+  test "signals_pages requires an app" do
+    assert {:error, message} = Tools.call("signals_pages", %{})
+    assert message =~ "app"
+  end
+
+  test "signals_pages GETs /api/v1/signals/pages" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/pages"
+      params = URI.decode_query(conn.query_string)
+      assert params["app"] == "new-lp"
+      assert params["range"] == "24h"
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "slug" => "new-lp",
+          "range" => "24h",
+          "requested" => [%{"path" => "/blog", "requests" => 1}],
+          "visited" => [],
+          "pageviews" => 0,
+          "uniques" => 0
+        }
+      })
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_pages", %{
+               "app" => "new-lp",
+               "range" => "24h",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"slug" => "new-lp", "requested" => [%{"path" => "/blog"}]} = Jason.decode!(text)
   end
 
   test "signals_alerts acks when id is present" do
