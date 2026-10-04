@@ -3,7 +3,7 @@ defmodule Cleat.Commands.Apps do
 
   alias Cleat.{Client, Commands, Output, Runtime}
 
-  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID [--apt pkg,pkg] | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--indexable|--no-indexable] [--host H] [--port N] [--repo owner/repo] [--runtime R] [--apt pkg,pkg] | cleat apps delete APP --yes | cleat apps logs APP [--tail N] [--since S] [--grep T] [--follow]"
+  @usage "usage: cleat apps list | cleat apps show APP | cleat apps create --name N --repo owner/repo --host H --server ID [--apt pkg,pkg] | cleat apps update APP [--branch B] [--auto-deploy|--no-auto-deploy] [--indexable|--no-indexable] [--host H] [--port N] [--repo owner/repo] [--runtime R] [--apt pkg,pkg] | cleat apps delete APP --yes | cleat apps logs APP [--tail N] [--since S] [--grep T] [--follow] | cleat apps query APP SQL [--limit N]"
 
   def run([], opts), do: list(opts)
   def run(["list"], opts), do: list(opts)
@@ -12,6 +12,8 @@ defmodule Cleat.Commands.Apps do
   def run(["update", app | _rest], opts), do: update(app, opts)
   def run(["delete", app | _rest], opts), do: delete(app, opts)
   def run(["logs", app | _rest], opts), do: logs(app, opts)
+  def run(["query", app | rest], opts), do: query(app, rest, opts)
+  def run(["query"], _opts), do: {:error, @usage}
   def run(_args, _opts), do: {:error, @usage}
 
   defp list(opts) do
@@ -206,6 +208,47 @@ defmodule Cleat.Commands.Apps do
   end
 
   defp log_opts(opts), do: %{tail: opts[:tail], since: opts[:since], grep: opts[:grep]}
+
+  defp query(app, rest, opts) do
+    sql = opts[:sql] || Enum.join(rest, " ") |> String.trim()
+
+    if sql == "" do
+      {:error, "usage: cleat apps query APP SQL [--limit N]"}
+    else
+      attrs =
+        %{"sql" => sql}
+        |> maybe_put_limit(opts)
+
+      with {:ok, client} <- Commands.client(opts),
+           {:ok, body} <- Client.query_app(client, app, attrs) do
+        data = Commands.data(body)
+        if opts[:json], do: Output.json(data), else: print_query(data)
+        :ok
+      end
+    end
+  end
+
+  defp maybe_put_limit(attrs, opts) do
+    case opts[:limit] do
+      nil -> attrs
+      limit -> Map.put(attrs, "limit", limit)
+    end
+  end
+
+  defp print_query(data) do
+    engine = data["engine"] || "—"
+    truncated = if data["truncated"], do: "truncated=true", else: "truncated=false"
+    Output.info("#{data["slug"]}  engine=#{engine}  #{truncated}")
+
+    columns = data["columns"] || []
+    rows = data["rows"] || []
+
+    if columns == [] do
+      Output.info("(no rows)")
+    else
+      Output.table(Enum.map(rows, &List.wrap/1), columns)
+    end
+  end
 
   defp print_lines([], app, true),
     do: Output.info("No runtime logs for #{app} yet. Following…")

@@ -235,6 +235,41 @@ defmodule Cleat.Commands.AppsTest do
     assert message =~ "--yes"
   end
 
+  test "queries the app datastore" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/apps/new-lp/query"
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{"sql" => "SELECT 1", "limit" => 5}
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "slug" => "new-lp",
+          "engine" => "sqlite",
+          "columns" => ["?column?"],
+          "rows" => [["1"]],
+          "truncated" => false
+        }
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 Apps.run(
+                   ["query", "new-lp", "SELECT", "1"],
+                   Map.merge(@conn, %{limit: 5})
+                 )
+      end)
+
+    assert output =~ "engine=sqlite"
+    assert output =~ "1"
+  end
+
+  test "query without SQL prints usage" do
+    assert {:error, message} = Apps.run(["query", "new-lp"], @conn)
+    assert message =~ "SQL"
+  end
+
   test "prints runtime logs" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "GET"

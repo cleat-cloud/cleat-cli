@@ -68,6 +68,7 @@ defmodule Cleat.CLI do
     grep: :string,
     unit: :string,
     query: :string,
+    sql: :string,
     severity: :string,
     min_severity: :string,
     until: :string,
@@ -209,6 +210,7 @@ defmodule Cleat.CLI do
         [--runtime R] [--apt pkg,pkg]       Edit repo / branch / auto-deploy / indexing / host / port / runtime / apt packages
       apps logs APP [--tail N] [--since S] [--grep T] [--follow]
                                             Runtime logs (systemd unit)
+      apps query APP SQL [--limit N]        Read-only SQL (Postgres or SQLite)
       servers logs ID [--unit U] [--tail N] [--since S] [--grep T] [--follow]
                                             Host journal (all units, or one with --unit)
 

@@ -22,6 +22,7 @@ defmodule Cleat.CLIMcpTest do
     assert usage =~ "signals health"
     assert usage =~ "signals metrics"
     assert usage =~ "signals pages"
+    assert usage =~ "apps query"
     assert usage =~ "signals alerts"
   end
 

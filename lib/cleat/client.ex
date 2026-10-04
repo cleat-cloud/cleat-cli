@@ -61,6 +61,11 @@ defmodule Cleat.Client do
     request(client, :get, "/api/v1/apps/#{app}/logs", params: log_params(opts))
   end
 
+  @doc "Read-only SQL against the app datastore (`POST /api/v1/apps/:id/query`)."
+  def query_app(%__MODULE__{} = client, app, attrs) when is_map(attrs) do
+    request(client, :post, "/api/v1/apps/#{app}/query", json: attrs)
+  end
+
   def server_logs(%__MODULE__{} = client, id, opts \\ %{}) when is_map(opts) do
     request(client, :get, "/api/v1/servers/#{id}/logs", params: log_params(opts))
   end

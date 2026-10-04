@@ -44,6 +44,7 @@ defmodule Cleat.MCP.ToolsTest do
              "apps_create",
              "apps_update",
              "apps_logs",
+             "apps_query",
              "env_list",
              "env_set",
              "env_unset",
@@ -141,6 +142,40 @@ defmodule Cleat.MCP.ToolsTest do
              })
 
     assert Jason.decode!(text)["lines"] == ["ERROR boom"]
+  end
+
+  test "apps_query POSTs sql to /api/v1/apps/:id/query" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/apps/new-lp/query"
+      assert Jason.decode!(Req.Test.raw_body(conn)) == %{"sql" => "SELECT 1", "limit" => 10}
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "slug" => "new-lp",
+          "engine" => "sqlite",
+          "columns" => ["?column?"],
+          "rows" => [["1"]],
+          "truncated" => false
+        }
+      })
+    end)
+
+    assert {:ok, text} =
+             Tools.call("apps_query", %{
+               "app" => "new-lp",
+               "sql" => "SELECT 1",
+               "limit" => 10,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert Jason.decode!(text)["engine"] == "sqlite"
+  end
+
+  test "apps_query requires sql" do
+    assert {:error, message} = Tools.call("apps_query", %{"app" => "new-lp"})
+    assert message =~ "sql"
   end
 
   test "logs_search forwards the filters to /api/v1/logs" do

@@ -687,6 +687,37 @@ defmodule Cleat.MCP.Tools do
         end
       },
       %{
+        "name" => "apps_query",
+        "description" =>
+          "Run one read-only SQL statement (SELECT, WITH, EXPLAIN, SHOW, PRAGMA) against the app's Postgres addon or local SQLite. Remote Turso/libSQL is unsupported.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "sql" => %{"type" => "string", "description" => "One read-only SQL statement"},
+            "limit" => %{
+              "type" => "integer",
+              "description" => "Max rows, 1-200 (default 50)"
+            },
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app", "sql"]
+        },
+        "handler" => fn args ->
+          attrs =
+            case args["limit"] do
+              limit when is_integer(limit) -> %{"sql" => args["sql"], "limit" => limit}
+              _ -> %{"sql" => args["sql"]}
+            end
+
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.query_app(client, args["app"], attrs),
+                 do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
         "name" => "env_list",
         "description" =>
           "List env vars (secrets masked unless reveal is true); branch filters the vars that apply to it",
