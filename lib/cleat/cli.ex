@@ -4,6 +4,7 @@ defmodule Cleat.CLI do
   """
 
   alias Cleat.Commands.{
+    Analytics,
     Apps,
     Cancel,
     Completions,
@@ -131,6 +132,7 @@ defmodule Cleat.CLI do
   defp dispatch(["env" | rest], opts), do: run(Env.run(rest, opts))
   defp dispatch(["events" | rest], opts), do: run(Events.run(rest, opts))
   defp dispatch(["signals" | rest], opts), do: run(Signals.run(rest, opts))
+  defp dispatch(["analytics" | rest], opts), do: run(Analytics.run(rest, opts))
 
   defp dispatch(["deploy" | rest], opts), do: run(Deploy.run(List.first(rest), opts))
   defp dispatch(["drop" | rest], opts), do: run(Drop.run(rest, opts))
@@ -233,6 +235,12 @@ defmodule Cleat.CLI do
       signals traces APP [--trace-id ID] [--service NAME]
                                              List traces or open a waterfall
       signals sampling APP [--rate 0..1]     Read or set trace sampling
+
+    Analytics
+      analytics requested                    Most requested apps · 24h (Caddy access log)
+      analytics visited                      Most visited apps by pageviews (JS sidecar)
+      analytics show APP [--range 24h|7d|90d]
+                                             Pageviews, uniques, paths, referrers, UTM
 
     Environment
       env list APP [--branch B] [--reveal]   List env vars (secrets masked)
