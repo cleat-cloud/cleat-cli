@@ -17,6 +17,7 @@
     "addons",
     "runtime",
     "runtime_apt_packages",
+    "analytics_inject",
     "server",
     "inserted_at"
   ],
@@ -27,6 +28,32 @@
     "columns",
     "rows",
     "truncated"
+  ],
+  "analytics_requested": [
+    "app_id",
+    "slug",
+    "name",
+    "host",
+    "requests"
+  ],
+  "analytics_visited": [
+    "app_id",
+    "slug",
+    "name",
+    "host",
+    "pageviews"
+  ],
+  "analytics_summary": [
+    "app_id",
+    "slug",
+    "range",
+    "pageviews",
+    "uniques",
+    "series",
+    "paths",
+    "referrers",
+    "utm",
+    "stale"
   ],
   "deployment": [
     "id",
@@ -90,6 +117,8 @@
     "reasons",
     "error_count",
     "previous_error_count",
+    "last_event_at",
+    "ingest",
     "preceding_release"
   ],
   "signal_metrics": [

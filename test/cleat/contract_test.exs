@@ -15,8 +15,12 @@ defmodule Cleat.ContractTest do
   # Keys the CLI reads from each resource type.
   @used %{
     "app" =>
-      ~w(id name slug github_repo branch host port runtime runtime_apt_packages auto_deploy indexable systemd_unit release_path data_dir server),
+      ~w(id name slug github_repo branch host port runtime runtime_apt_packages analytics_inject auto_deploy indexable systemd_unit release_path data_dir server),
     "app_query" => ~w(app_id slug engine columns rows truncated),
+    "analytics_requested" => ~w(app_id slug name host requests),
+    "analytics_visited" => ~w(app_id slug name host pageviews),
+    "analytics_summary" =>
+      ~w(app_id slug range pageviews uniques series paths referrers utm stale),
     "server" =>
       ~w(id name host_ip ssh_user region provider deploy_mode instance_status bundle_name cpu_count ram_mb disk_gb),
     "deployment" =>
