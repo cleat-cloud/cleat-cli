@@ -538,6 +538,61 @@ defmodule Cleat.MCP.Tools do
         end
       },
       %{
+        "name" => "analytics_requested",
+        "description" =>
+          "Most requested apps in the last 24h on the active server, from Caddy's access log (HTTP hits, not pageviews).",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{"panel" => @panel, "token" => @token}
+        },
+        "handler" => fn args ->
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.analytics_requested(client), do: {:ok, data_text(body)}
+          end)
+        end
+      },
+      %{
+        "name" => "analytics_visited",
+        "description" =>
+          "Most visited apps in the last 24h by JS pageviews on the active server (inject-on only). stale=true means the sidecar did not answer.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{"panel" => @panel, "token" => @token}
+        },
+        "handler" => fn args ->
+          with_client(args, fn client ->
+            with {:ok, body} <- Client.analytics_visited(client) do
+              {:ok, json(%{"data" => Commands.data(body), "stale" => body["stale"] == true})}
+            end
+          end)
+        end
+      },
+      %{
+        "name" => "analytics_summary",
+        "description" =>
+          "Pageview summary for one app: pageviews, uniques, series, top paths, referrers and UTM. range is 24h, 7d or 90d; stale=true means the sidecar did not answer.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => @app,
+            "range" => %{"type" => "string", "description" => "24h, 7d or 90d"},
+            "panel" => @panel,
+            "token" => @token
+          },
+          "required" => ["app"]
+        },
+        "handler" => fn args ->
+          params = compact_params(%{"range" => args["range"]})
+
+          with_client(args, fn client ->
+            with {:ok, body} <-
+                   Client.analytics_summary(client, args["app"], params) do
+              {:ok, data_text(body)}
+            end
+          end)
+        end
+      },
+      %{
         "name" => "apps_list",
         "description" => "List apps",
         "inputSchema" => %{

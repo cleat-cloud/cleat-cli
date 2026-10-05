@@ -103,6 +103,21 @@ defmodule Cleat.Client do
     request(client, :get, "/api/v1/signals/pages", params: params)
   end
 
+  @doc "Most requested apps 24h on the active server (`GET /api/v1/analytics/requested`)."
+  def analytics_requested(%__MODULE__{} = client) do
+    request(client, :get, "/api/v1/analytics/requested")
+  end
+
+  @doc "Most visited apps 24h on the active server (`GET /api/v1/analytics/visited`)."
+  def analytics_visited(%__MODULE__{} = client) do
+    request(client, :get, "/api/v1/analytics/visited")
+  end
+
+  @doc "Pageview summary for one app (`GET /api/v1/apps/:id/analytics`)."
+  def analytics_summary(%__MODULE__{} = client, app, params \\ %{}) when is_map(params) do
+    request(client, :get, "/api/v1/apps/#{app}/analytics", params: params)
+  end
+
   @doc "Open signal alerts (`GET /api/v1/signals/alerts`)."
   def signals_alerts(%__MODULE__{} = client), do: request(client, :get, "/api/v1/signals/alerts")
 

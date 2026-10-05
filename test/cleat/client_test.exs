@@ -58,6 +58,45 @@ defmodule Cleat.ClientTest do
              Client.signals_pages(client, %{"app" => "new-lp", "range" => "24h"})
   end
 
+  test "analytics_requested GETs /api/v1/analytics/requested" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/analytics/requested"
+      Req.Test.json(conn, %{"data" => [%{"slug" => "nfe-facil", "requests" => 3}]})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => [%{"slug" => "nfe-facil"}]}} =
+             Client.analytics_requested(client)
+  end
+
+  test "analytics_visited GETs /api/v1/analytics/visited" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/analytics/visited"
+      Req.Test.json(conn, %{"data" => [], "stale" => true})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"stale" => true}} = Client.analytics_visited(client)
+  end
+
+  test "analytics_summary GETs /api/v1/apps/:id/analytics with the range" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/apps/fagulha-app/analytics"
+      assert URI.decode_query(conn.query_string)["range"] == "7d"
+      Req.Test.json(conn, %{"data" => %{"slug" => "fagulha-app", "range" => "7d"}})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => %{"range" => "7d"}}} =
+             Client.analytics_summary(client, "fagulha-app", %{"range" => "7d"})
+  end
+
   test "query_app POSTs /api/v1/apps/:id/query" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "POST"

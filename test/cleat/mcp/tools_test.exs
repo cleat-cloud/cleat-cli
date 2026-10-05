@@ -39,6 +39,9 @@ defmodule Cleat.MCP.ToolsTest do
              "signals_alerts",
              "signals_traces",
              "signals_set_sampling",
+             "analytics_requested",
+             "analytics_visited",
+             "analytics_summary",
              "apps_list",
              "apps_show",
              "apps_create",
@@ -263,6 +266,61 @@ defmodule Cleat.MCP.ToolsTest do
              })
 
     assert %{"slug" => "new-lp", "requested" => [%{"path" => "/blog"}]} = Jason.decode!(text)
+  end
+
+  test "analytics_requested GETs /api/v1/analytics/requested" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/analytics/requested"
+      Req.Test.json(conn, %{"data" => [%{"slug" => "nfe-facil", "requests" => 3}]})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("analytics_requested", %{
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert [%{"slug" => "nfe-facil", "requests" => 3}] = Jason.decode!(text)
+  end
+
+  test "analytics_visited reports stale" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/analytics/visited"
+      Req.Test.json(conn, %{"data" => [], "stale" => true})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("analytics_visited", %{
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"stale" => true} = Jason.decode!(text)
+  end
+
+  test "analytics_summary requires an app" do
+    assert {:error, message} = Tools.call("analytics_summary", %{})
+    assert message =~ "app"
+  end
+
+  test "analytics_summary forwards the range" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.request_path == "/api/v1/apps/fagulha-app/analytics"
+      assert URI.decode_query(conn.query_string)["range"] == "90d"
+
+      Req.Test.json(conn, %{"data" => %{"slug" => "fagulha-app", "range" => "90d"}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("analytics_summary", %{
+               "app" => "fagulha-app",
+               "range" => "90d",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"slug" => "fagulha-app", "range" => "90d"} = Jason.decode!(text)
   end
 
   test "signals_alerts acks when id is present" do
