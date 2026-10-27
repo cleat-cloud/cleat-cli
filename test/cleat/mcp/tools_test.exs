@@ -60,6 +60,13 @@ defmodule Cleat.MCP.ToolsTest do
            ]
   end
 
+  test "tool names are unique across domain modules" do
+    names = Tools.list() |> Enum.map(& &1["name"])
+    duplicated = names -- Enum.uniq(names)
+
+    assert duplicated == [], "duplicated tools: #{Enum.join(duplicated, ", ")}"
+  end
+
   test "every tool exposes a JSON schema object" do
     for tool <- Tools.list() do
       assert %{"type" => "object"} = tool["inputSchema"]
