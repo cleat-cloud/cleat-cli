@@ -52,6 +52,7 @@ defmodule Cleat.Commands.Init do
     |> maybe_put("start_command", opts[:start_command])
     |> maybe_put("node_version", opts[:node_version])
     |> maybe_put("ruby_version", opts[:ruby_version])
+    |> maybe_put("gleam_version", opts[:gleam_version])
     |> maybe_put("memory_max_mb", opts[:memory_max_mb] || 400)
     |> maybe_put("caddy_mode", opts[:caddy_mode])
     |> maybe_put("caddy_listen_port", opts[:caddy_listen_port])
@@ -64,6 +65,7 @@ defmodule Cleat.Commands.Init do
   defp default_release_name("node"), do: nil
   defp default_release_name("rails"), do: nil
   defp default_release_name("rust"), do: nil
+  defp default_release_name("gleam"), do: nil
   defp default_release_name("phoenix"), do: mix_app()
 
   defp mix_app do

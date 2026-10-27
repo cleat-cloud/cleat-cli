@@ -975,6 +975,7 @@ defmodule Cleat.MCP.Tools do
             "build_command" => %{"type" => "string"},
             "start_command" => %{"type" => "string"},
             "node_version" => %{"type" => "string"},
+            "gleam_version" => %{"type" => "string"},
             "memory_max_mb" => %{"type" => "integer"},
             "overwrite" => %{"type" => "boolean"}
           }
@@ -996,6 +997,11 @@ defmodule Cleat.MCP.Tools do
           opts =
             if args["node_version"],
               do: Map.put(opts, :node_version, args["node_version"]),
+              else: opts
+
+          opts =
+            if args["gleam_version"],
+              do: Map.put(opts, :gleam_version, args["gleam_version"]),
               else: opts
 
           opts =

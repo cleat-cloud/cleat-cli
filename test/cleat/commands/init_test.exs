@@ -133,6 +133,24 @@ defmodule Cleat.Commands.InitTest do
     assert manifest["runtime"] == "rust"
   end
 
+  test "detects a Gleam project as gleam" do
+    File.write!("gleam.toml", ~s(name = "hello"\nversion = "1.0.0"\n))
+
+    assert :ok = Init.run(%{})
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "gleam"
+    refute Map.has_key?(manifest, "release_name")
+  end
+
+  test "writes a gleam gleam_version option" do
+    assert :ok = Init.run(%{runtime: "gleam", gleam_version: "1.9.1"})
+
+    manifest = read_manifest()
+    assert manifest["runtime"] == "gleam"
+    assert manifest["gleam_version"] == "1.9.1"
+  end
+
   test "detects a Rails project as rails" do
     File.write!("Gemfile", ~s(source "https://rubygems.org"\ngem "rails", "~> 7.1"\n))
     File.mkdir_p!("config")

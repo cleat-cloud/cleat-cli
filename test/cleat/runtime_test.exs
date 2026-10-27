@@ -80,6 +80,17 @@ defmodule Cleat.RuntimeTest do
     assert Runtime.normalize("RUST") == "rust"
   end
 
+  test "detects a Gleam project as gleam" do
+    File.write!("gleam.toml", ~s(name = "hello"\nversion = "1.0.0"\n))
+
+    assert Runtime.detect() == "gleam"
+  end
+
+  test "normalizes gleam as a valid runtime" do
+    assert Runtime.normalize("gleam") == "gleam"
+    assert Runtime.normalize("GLEAM") == "gleam"
+  end
+
   test "detects a bare package.json as static" do
     File.write!("package.json", ~s({"name":"site"}))
 
