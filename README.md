@@ -2,8 +2,8 @@
 
 `cleat` is the command-line client for [Cleat](https://github.com/cleat-cloud/cleat-deploy),
 a self-hosted PaaS that deploys Phoenix/Elixir, Go, Node (Next.js / TanStack
-Start), Ruby on Rails, Rust (Loco) and static apps to Hetzner Cloud and AWS
-Lightsail over SSH.
+Start), Ruby on Rails, Rust (Loco), Gleam (Erlang target) and static apps to
+Hetzner Cloud and AWS Lightsail over SSH.
 
 It talks to the panel's JSON API (`/api/v1`) to list servers and apps, manage env
 vars, trigger deploys, and watch build and runtime logs.
@@ -216,6 +216,24 @@ vars.
 }
 ```
 
+For Gleam, `cleat init` detects a `gleam.toml` and picks the `gleam` runtime.
+The panel installs Erlang, Gleam and rebar3 via mise, exports the project as an
+Erlang shipment (`gleam export erlang-shipment`), publishes the shipment whole,
+and keeps `./entrypoint.sh run` alive with a systemd unit behind Caddy.
+
+Only the Erlang target is supported: a `gleam.toml` with
+`target = "javascript"` fails the build with a clear message. Erlang is pinned
+by the panel, and the app reads `PORT` from it. `gleam_version` overrides the
+Gleam version; `build_command` replaces the export step (it must produce
+`build/erlang-shipment/`).
+
+```json
+{
+  "runtime": "gleam",
+  "gleam_version": "1.18.1"
+}
+```
+
 Commit the manifest so the panel picks it up on the next deploy.
 
 ### Logs
@@ -289,7 +307,7 @@ Register and deploy in one shot. If the repo is unknown, pass `--server` and
 `--host`; the app is created with sane defaults (slug from the repo name). The
 runtime is detected from the local project the same way `cleat init` does, so a
 Next.js / TanStack Start repo registers as `node`; override it with `--runtime`
-(`phoenix`, `golang`, `node`, `rails`, `rust` or `static`):
+(`phoenix`, `golang`, `node`, `rails`, `rust`, `gleam` or `static`):
 
 ```bash
 cleat deploy --repo owner/repo --server 3 --host repo.example.com --watch

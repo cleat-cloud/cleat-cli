@@ -7,7 +7,7 @@ defmodule Cleat.Runtime do
   `node` instead of silently defaulting to `phoenix`.
   """
 
-  @runtimes ~w(phoenix golang static node rails rust)
+  @runtimes ~w(phoenix golang static node rails rust gleam)
 
   @doc """
   Detects the runtime for the current working directory, defaulting to `phoenix`.
@@ -27,6 +27,9 @@ defmodule Cleat.Runtime do
 
       file?(dir, "Cargo.toml") ->
         "rust"
+
+      file?(dir, "gleam.toml") ->
+        "gleam"
 
       rails?(dir) ->
         "rails"
