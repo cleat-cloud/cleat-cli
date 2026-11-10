@@ -136,9 +136,35 @@ defmodule Cleat.Client do
     request(client, :get, "/api/v1/signals/sampling", params: params)
   end
 
-  @doc "Set per-app trace sample rate (`PATCH /api/v1/signals/sampling`)."
+  @doc "Set per-app trace and/or exception sample rate (`PATCH /api/v1/signals/sampling`)."
   def update_signals_sampling(%__MODULE__{} = client, params) when is_map(params) do
     request(client, :patch, "/api/v1/signals/sampling", json: params)
+  end
+
+  @doc "List grouped error issues (`GET /api/v1/signals/issues`)."
+  def signals_issues(%__MODULE__{} = client, params \\ %{}) when is_map(params) do
+    request(client, :get, "/api/v1/signals/issues", params: params)
+  end
+
+  @doc "Resolve an issue (`POST /api/v1/signals/issues/:id/resolve`)."
+  def resolve_signal_issue(%__MODULE__{} = client, id) when is_binary(id) or is_integer(id) do
+    mutate_signal_issue(client, id, "resolve")
+  end
+
+  @doc "Ignore an issue (`POST /api/v1/signals/issues/:id/ignore`)."
+  def ignore_signal_issue(%__MODULE__{} = client, id) when is_binary(id) or is_integer(id) do
+    mutate_signal_issue(client, id, "ignore")
+  end
+
+  @doc "Reopen an issue (`POST /api/v1/signals/issues/:id/reopen`)."
+  def reopen_signal_issue(%__MODULE__{} = client, id) when is_binary(id) or is_integer(id) do
+    mutate_signal_issue(client, id, "reopen")
+  end
+
+  @doc false
+  def mutate_signal_issue(%__MODULE__{} = client, id, action)
+      when (is_binary(id) or is_integer(id)) and action in ~w(resolve ignore reopen) do
+    request(client, :post, "/api/v1/signals/issues/#{id}/#{action}", json: %{})
   end
 
   defp log_params(opts) do

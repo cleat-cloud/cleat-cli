@@ -127,6 +127,33 @@ defmodule Cleat.ClientTest do
              Client.signals_traces(client, %{"app" => "catalogo", "service" => "payment"})
   end
 
+  test "signals_issues GETs /api/v1/signals/issues" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/issues"
+      assert URI.decode_query(conn.query_string)["app"] == "catalogo"
+      Req.Test.json(conn, %{"data" => [%{"id" => 9}]})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => [%{"id" => 9}]}} =
+             Client.signals_issues(client, %{"app" => "catalogo"})
+  end
+
+  test "resolve_signal_issue POSTs /api/v1/signals/issues/:id/resolve" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/signals/issues/9/resolve"
+      Req.Test.json(conn, %{"data" => %{"id" => 9, "status" => "resolved"}})
+    end)
+
+    client = Client.new("https://panel.test", "tok")
+
+    assert {:ok, %{"data" => %{"status" => "resolved"}}} =
+             Client.resolve_signal_issue(client, 9)
+  end
+
   test "update_signals_sampling PATCHes /api/v1/signals/sampling" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "PATCH"

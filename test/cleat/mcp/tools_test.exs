@@ -39,6 +39,7 @@ defmodule Cleat.MCP.ToolsTest do
              "signals_alerts",
              "signals_traces",
              "signals_set_sampling",
+             "signals_issues",
              "analytics_requested",
              "analytics_visited",
              "analytics_summary",
@@ -394,6 +395,71 @@ defmodule Cleat.MCP.ToolsTest do
              })
 
     assert %{"trace_sample_rate" => 1.0} = Jason.decode!(text)
+  end
+
+  test "signals_set_sampling PATCHes exception_sample_rate" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+      assert conn.request_path == "/api/v1/signals/sampling"
+      body = conn |> Req.Test.raw_body() |> Jason.decode!()
+      assert body["app"] == "catalogo"
+      assert body["exception_sample_rate"] == 1
+      refute Map.has_key?(body, "rate")
+
+      Req.Test.json(conn, %{
+        "data" => %{"slug" => "catalogo", "exception_sample_rate" => 1.0}
+      })
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_set_sampling", %{
+               "app" => "catalogo",
+               "exception_sample_rate" => 1,
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"exception_sample_rate" => 1.0} = Jason.decode!(text)
+  end
+
+  test "signals_issues lists unresolved issues" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/issues"
+      assert URI.decode_query(conn.query_string)["app"] == "catalogo"
+
+      Req.Test.json(conn, %{
+        "data" => [%{"id" => 9, "slug" => "catalogo", "status" => "unresolved"}]
+      })
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_issues", %{
+               "app" => "catalogo",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"id" => 9} = hd(Jason.decode!(text))
+  end
+
+  test "signals_issues resolve posts when action is set" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/signals/issues/9/resolve"
+
+      Req.Test.json(conn, %{"data" => %{"id" => 9, "status" => "resolved"}})
+    end)
+
+    assert {:ok, text} =
+             Tools.call("signals_issues", %{
+               "id" => "9",
+               "action" => "resolve",
+               "panel" => "https://panel.test",
+               "token" => "tok"
+             })
+
+    assert %{"status" => "resolved"} = Jason.decode!(text)
   end
 
   test "server_logs GETs /api/v1/servers/5/logs with the unit filter" do
