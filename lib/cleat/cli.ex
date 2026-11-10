@@ -81,6 +81,7 @@ defmodule Cleat.CLI do
     trace_id: :string,
     service: :string,
     rate: :float,
+    exception_rate: :float,
     release_name: :string,
     systemd_unit: :string,
     release_path: :string,
@@ -235,7 +236,11 @@ defmodule Cleat.CLI do
       signals alerts ack ID                  Confirm a firing alert
       signals traces APP [--trace-id ID] [--service NAME]
                                              List traces or open a waterfall
-      signals sampling APP [--rate 0..1]     Read or set trace sampling
+      signals sampling APP [--rate 0..1] [--exception-rate 0..1]
+                                             Read or set trace/exception sampling
+      signals issues [APP]                   Grouped error issues
+      signals issues resolve|ignore|reopen ID
+                                             Resolve, ignore or reopen an issue
 
     Analytics
       analytics requested                    Most requested apps · 24h (Caddy access log)

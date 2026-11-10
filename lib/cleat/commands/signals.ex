@@ -13,7 +13,9 @@ defmodule Cleat.Commands.Signals do
     cleat signals alerts [list]
     cleat signals alerts ack ID
     cleat signals traces APP [--trace-id ID] [--service NAME]
-    cleat signals sampling APP [--rate 0.0..1.0]
+    cleat signals sampling APP [--rate 0.0..1.0] [--exception-rate 0.0..1.0]
+    cleat signals issues [APP]
+    cleat signals issues resolve|ignore|reopen ID
   """
 
   def run(["health" | rest], opts), do: health(rest, opts)
@@ -28,6 +30,12 @@ defmodule Cleat.Commands.Signals do
   def run(["traces"], _opts), do: {:error, @usage}
   def run(["sampling", app | _rest], opts), do: sampling(app, opts)
   def run(["sampling"], _opts), do: {:error, @usage}
+
+  def run(["issues", action, id | _rest], opts) when action in ~w(resolve ignore reopen),
+    do: mutate_issue(action, id, opts)
+
+  def run(["issues"], opts), do: issues(nil, opts)
+  def run(["issues", app | _rest], opts), do: issues(app, opts)
   def run(_args, _opts), do: {:error, @usage}
 
   defp health(args, opts) do
@@ -105,12 +113,12 @@ defmodule Cleat.Commands.Signals do
   defp sampling(app, opts) do
     with {:ok, client} <- Commands.client(opts) do
       result =
-        case opts[:rate] do
-          nil ->
+        case sampling_body(app, opts) do
+          :read ->
             Client.signals_sampling(client, compact(%{"app" => app}))
 
-          rate ->
-            Client.update_signals_sampling(client, %{"app" => app, "rate" => rate})
+          body ->
+            Client.update_signals_sampling(client, body)
         end
 
       with {:ok, body} <- result do
@@ -118,6 +126,41 @@ defmodule Cleat.Commands.Signals do
         if opts[:json], do: Output.json(data), else: print_sampling(data)
         :ok
       end
+    end
+  end
+
+  defp sampling_body(app, opts) do
+    body =
+      compact(%{
+        "app" => app,
+        "rate" => opts[:rate],
+        "exception_sample_rate" => opts[:exception_rate]
+      })
+
+    if Map.keys(body) == ["app"], do: :read, else: body
+  end
+
+  defp issues(app, opts) do
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- Client.signals_issues(client, compact(%{"app" => app})) do
+      rows = Commands.data(body)
+      if opts[:json], do: Output.json(rows), else: print_issues(rows)
+      :ok
+    end
+  end
+
+  defp mutate_issue(action, id, opts) do
+    with {:ok, client} <- Commands.client(opts),
+         {:ok, body} <- Client.mutate_signal_issue(client, id, action) do
+      issue = Commands.data(body)
+
+      if opts[:json] do
+        Output.json(issue)
+      else
+        Output.success("#{issue["status"] || action} issue #{issue["id"] || id}")
+      end
+
+      :ok
     end
   end
 
@@ -271,7 +314,22 @@ defmodule Cleat.Commands.Signals do
   end
 
   defp print_sampling(data) do
-    Output.info("#{data["slug"]}  rate=#{data["trace_sample_rate"]}")
+    Output.info(
+      "#{data["slug"]}  traces=#{data["trace_sample_rate"]}  exceptions=#{data["exception_sample_rate"]}"
+    )
+  end
+
+  defp print_issues([]) do
+    Output.info("No open issues.")
+  end
+
+  defp print_issues(rows) do
+    table =
+      Enum.map(rows, fn row ->
+        [row["id"], row["slug"], row["status"], row["source"], row["count"], row["sample"]]
+      end)
+
+    Output.table(table, ["ID", "APP", "STATUS", "SOURCE", "COUNT", "SAMPLE"])
   end
 
   defp services(list) when is_list(list), do: Enum.join(list, ",")

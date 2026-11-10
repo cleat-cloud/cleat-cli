@@ -274,20 +274,26 @@ defmodule Cleat.Commands.SignalsTest do
     assert message =~ "usage"
   end
 
-  test "sampling reads the current rate" do
+  test "sampling reads trace and exception rates" do
     Req.Test.stub(__MODULE__, fn conn ->
       assert conn.method == "GET"
       assert conn.request_path == "/api/v1/signals/sampling"
       assert URI.decode_query(conn.query_string)["app"] == "catalogo"
 
       Req.Test.json(conn, %{
-        "data" => %{"app_id" => 6, "slug" => "catalogo", "trace_sample_rate" => 0.0}
+        "data" => %{
+          "app_id" => 6,
+          "slug" => "catalogo",
+          "trace_sample_rate" => 0.0,
+          "exception_sample_rate" => 0.0
+        }
       })
     end)
 
     output = capture_io(fn -> assert :ok = Signals.run(["sampling", "catalogo"], @conn) end)
     assert output =~ "catalogo"
-    assert output =~ "0.0" or output =~ "0"
+    assert output =~ "traces=0"
+    assert output =~ "exceptions=0"
   end
 
   test "sampling --rate patches the panel" do
@@ -299,7 +305,12 @@ defmodule Cleat.Commands.SignalsTest do
       assert body["rate"] == 0.5
 
       Req.Test.json(conn, %{
-        "data" => %{"app_id" => 6, "slug" => "catalogo", "trace_sample_rate" => 0.5}
+        "data" => %{
+          "app_id" => 6,
+          "slug" => "catalogo",
+          "trace_sample_rate" => 0.5,
+          "exception_sample_rate" => 0.0
+        }
       })
     end)
 
@@ -309,6 +320,90 @@ defmodule Cleat.Commands.SignalsTest do
       end)
 
     assert output =~ "0.5"
+  end
+
+  test "sampling --exception-rate patches only exceptions" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "PATCH"
+      assert conn.request_path == "/api/v1/signals/sampling"
+      body = conn |> Req.Test.raw_body() |> Jason.decode!()
+      assert body["app"] == "catalogo"
+      assert body["exception_sample_rate"] == 1.0
+      refute Map.has_key?(body, "rate")
+
+      Req.Test.json(conn, %{
+        "data" => %{
+          "app_id" => 6,
+          "slug" => "catalogo",
+          "trace_sample_rate" => 0.0,
+          "exception_sample_rate" => 1.0
+        }
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok =
+                 Signals.run(
+                   ["sampling", "catalogo"],
+                   Map.put(@conn, :exception_rate, 1.0)
+                 )
+      end)
+
+    assert output =~ "exceptions=1"
+  end
+
+  test "issues lists unresolved groups" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "GET"
+      assert conn.request_path == "/api/v1/signals/issues"
+      assert URI.decode_query(conn.query_string)["app"] == "catalogo"
+
+      Req.Test.json(conn, %{
+        "data" => [
+          %{
+            "id" => 9,
+            "app_id" => 6,
+            "slug" => "catalogo",
+            "fingerprint" => "abc123",
+            "status" => "unresolved",
+            "severity" => "err",
+            "sample" => "** (RuntimeError) boom",
+            "count" => 4,
+            "source" => "otlp"
+          }
+        ]
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok = Signals.run(["issues", "catalogo"], @conn)
+      end)
+
+    assert output =~ "catalogo"
+    assert output =~ "boom"
+    assert output =~ "otlp"
+    assert output =~ "9"
+  end
+
+  test "issues resolve posts to the panel" do
+    Req.Test.stub(__MODULE__, fn conn ->
+      assert conn.method == "POST"
+      assert conn.request_path == "/api/v1/signals/issues/9/resolve"
+
+      Req.Test.json(conn, %{
+        "data" => %{"id" => 9, "slug" => "catalogo", "status" => "resolved"}
+      })
+    end)
+
+    output =
+      capture_io(fn ->
+        assert :ok = Signals.run(["issues", "resolve", "9"], @conn)
+      end)
+
+    assert output =~ "resolved"
+    assert output =~ "9"
   end
 
   test "sampling without an app returns usage" do

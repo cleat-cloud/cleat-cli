@@ -189,29 +189,69 @@ defmodule Cleat.MCP.Tools.Observability do
       %{
         "name" => "signals_set_sampling",
         "description" =>
-          "Set the fraction of traces stored for an app (0 disables ingest, 1 stores all).",
+          "Set the fraction of traces and/or exceptions stored for an app (0 disables ingest, 1 stores all). Rates are independent.",
         "inputSchema" => %{
           "type" => "object",
           "properties" => %{
             "app" => Schema.app(),
             "rate" => %{
               "type" => "number",
-              "description" => "Sample rate between 0 and 1"
+              "description" => "Trace sample rate between 0 and 1"
+            },
+            "exception_sample_rate" => %{
+              "type" => "number",
+              "description" => "Exception sample rate between 0 and 1"
             },
             "panel" => Schema.panel(),
             "token" => Schema.token()
           },
-          "required" => ["app", "rate"]
+          "required" => ["app"]
+        },
+        "handler" => fn args ->
+          params =
+            Support.compact_params(%{
+              "app" => args["app"],
+              "rate" => args["rate"],
+              "exception_sample_rate" => args["exception_sample_rate"]
+            })
+
+          Support.with_client(args, fn client ->
+            with {:ok, body} <- Client.update_signals_sampling(client, params) do
+              {:ok, Support.data_text(body)}
+            end
+          end)
+        end
+      },
+      %{
+        "name" => "signals_issues",
+        "description" =>
+          "List unresolved error issues. Pass id and action (resolve, ignore, reopen) to mutate one.",
+        "inputSchema" => %{
+          "type" => "object",
+          "properties" => %{
+            "app" => Schema.app(),
+            "id" => %{"type" => "string", "description" => "Issue id to mutate"},
+            "action" => %{
+              "type" => "string",
+              "description" => "resolve, ignore or reopen"
+            },
+            "panel" => Schema.panel(),
+            "token" => Schema.token()
+          }
         },
         "handler" => fn args ->
           Support.with_client(args, fn client ->
-            with {:ok, body} <-
-                   Client.update_signals_sampling(client, %{
-                     "app" => args["app"],
-                     "rate" => args["rate"]
-                   }) do
-              {:ok, Support.data_text(body)}
-            end
+            result =
+              case {args["id"], args["action"]} do
+                {id, action}
+                when (is_binary(id) or is_integer(id)) and action in ~w(resolve ignore reopen) ->
+                  Client.mutate_signal_issue(client, id, action)
+
+                _ ->
+                  Client.signals_issues(client, Support.compact_params(%{"app" => args["app"]}))
+              end
+
+            with {:ok, body} <- result, do: {:ok, Support.data_text(body)}
           end)
         end
       },
