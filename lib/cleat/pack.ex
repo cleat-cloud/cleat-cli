@@ -7,7 +7,7 @@ defmodule Cleat.Pack do
   safe to call from the MCP server.
   """
 
-  @excludes ~w(.git node_modules .DS_Store)
+  @excludes ~w(.git node_modules .venv .cleat-python __pycache__ .DS_Store)
 
   @doc "Packs `path` into a temporary `.tar.gz` and returns its path."
   def pack(path) when is_binary(path) do
