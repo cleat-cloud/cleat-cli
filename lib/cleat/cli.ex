@@ -91,6 +91,7 @@ defmodule Cleat.CLI do
     node_version: :string,
     ruby_version: :string,
     gleam_version: :string,
+    python_version: :string,
     memory_max_mb: :integer,
     caddy_mode: :string,
     caddy_listen_port: :integer,

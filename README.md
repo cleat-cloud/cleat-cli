@@ -234,6 +234,21 @@ Gleam version; `build_command` replaces the export step (it must produce
 }
 ```
 
+For Python, `cleat init` detects `pyproject.toml`, `requirements.txt`, `Pipfile`
+or `uv.lock` and picks the `python` runtime. The panel installs uv, a managed
+CPython into the release, syncs `.venv`, and keeps the process alive with a
+systemd unit behind Caddy. The start command is `start_command`, else
+`main.py` / `app.py` / `server.py`. `python_version` overrides the CPython
+minor (default `3.12`).
+
+```json
+{
+  "runtime": "python",
+  "python_version": "3.12",
+  "start_command": "uv run gunicorn app:app --bind 127.0.0.1:$PORT"
+}
+```
+
 Commit the manifest so the panel picks it up on the next deploy.
 
 ### Logs
@@ -307,7 +322,7 @@ Register and deploy in one shot. If the repo is unknown, pass `--server` and
 `--host`; the app is created with sane defaults (slug from the repo name). The
 runtime is detected from the local project the same way `cleat init` does, so a
 Next.js / TanStack Start repo registers as `node`; override it with `--runtime`
-(`phoenix`, `golang`, `node`, `rails`, `rust`, `gleam` or `static`):
+(`phoenix`, `golang`, `node`, `rails`, `rust`, `gleam`, `python` or `static`):
 
 ```bash
 cleat deploy --repo owner/repo --server 3 --host repo.example.com --watch

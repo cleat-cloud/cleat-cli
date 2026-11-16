@@ -7,7 +7,7 @@ defmodule Cleat.Runtime do
   `node` instead of silently defaulting to `phoenix`.
   """
 
-  @runtimes ~w(phoenix golang static node rails rust gleam)
+  @runtimes ~w(phoenix golang static node rails rust gleam python)
 
   @doc """
   Detects the runtime for the current working directory, defaulting to `phoenix`.
@@ -36,6 +36,9 @@ defmodule Cleat.Runtime do
 
       node_project?(dir) ->
         "node"
+
+      python_project?(dir) ->
+        "python"
 
       file?(dir, "index.html") or file?(dir, "package.json") ->
         "static"
@@ -83,6 +86,13 @@ defmodule Cleat.Runtime do
     do: String.ends_with?(rest, "-start") or String.ends_with?(rest, "/start")
 
   defp node_framework?(_dep), do: false
+
+  defp python_project?(dir) do
+    file?(dir, "pyproject.toml") or
+      file?(dir, "requirements.txt") or
+      file?(dir, "Pipfile") or
+      file?(dir, "uv.lock")
+  end
 
   defp file?(dir, relative), do: File.exists?(Path.join(dir, relative))
 end

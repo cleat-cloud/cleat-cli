@@ -91,6 +91,23 @@ defmodule Cleat.RuntimeTest do
     assert Runtime.normalize("GLEAM") == "gleam"
   end
 
+  test "detects a Python project as python" do
+    File.write!("pyproject.toml", ~s([project]\nname = "hermes"\nversion = "0.1.0"\n))
+
+    assert Runtime.detect() == "python"
+  end
+
+  test "detects requirements.txt as python" do
+    File.write!("requirements.txt", "flask==3.0.0\n")
+
+    assert Runtime.detect() == "python"
+  end
+
+  test "normalizes python as a valid runtime" do
+    assert Runtime.normalize("python") == "python"
+    assert Runtime.normalize("PYTHON") == "python"
+  end
+
   test "detects a bare package.json as static" do
     File.write!("package.json", ~s({"name":"site"}))
 
